@@ -1,0 +1,21 @@
+{
+  "name": "zenob-backend",
+  "version": "1.0.0",
+  "scripts": {
+    "start:dev": "ts-node -r reflect-metadata src/main.ts"
+  },
+  "dependencies": {
+    "@nestjs/common": "^10.0.0",
+    "@nestjs/core": "^10.0.0",
+    "@nestjs/platform-express": "^10.0.0",
+    "@prisma/client": "5.22.0",
+    "dotenv": "^16.0.0",
+    "reflect-metadata": "^0.1.13",
+    "rxjs": "^7.0.0"
+  },
+  "devDependencies": {
+    "prisma": "5.22.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}

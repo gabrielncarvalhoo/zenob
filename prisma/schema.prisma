@@ -1,0 +1,624 @@
+// =============================================================
+// ZENOB — Schema do Banco de Dados
+// Plataforma de Administração de Aluguéis
+// =============================================================
+// Gerado com Claude Sonnet 4.6
+// Para aplicar: npx prisma migrate dev --name init
+// =============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================
+// ENUMS — Listas de valores fixos
+// =============================================================
+
+enum UserRole {
+  OWNER      // proprietário principal da conta
+  MANAGER    // gerente (ex: cônjuge, assistente)
+  ACCOUNTANT // contador (somente leitura financeira)
+}
+
+enum PropertyType {
+  HOUSE       // casa
+  APARTMENT   // apartamento
+  COMMERCIAL  // imóvel comercial
+  LAND        // terreno
+  OTHER       // outro
+}
+
+enum OccupancyStatus {
+  VACANT      // vago
+  OCCUPIED    // ocupado
+  MAINTENANCE // em manutenção
+}
+
+enum AdjustmentIndex {
+  IGP_M  // índice mais comum em contratos BR
+  IPCA   // inflação oficial
+  INPC   // alternativa ao IPCA
+  FIXED  // sem reajuste automático
+}
+
+enum LateFeeType {
+  PERCENT // ex: 2% sobre o valor
+  FIXED   // valor fixo em reais
+}
+
+enum InterestType {
+  DAILY   // juros ao dia (ex: 0.033% ao dia = 1% ao mês)
+  MONTHLY // juros ao mês
+}
+
+enum GuaranteeType {
+  DEPOSIT   // depósito caução
+  SURETY    // fiador
+  INSURANCE // seguro fiança
+  NONE      // sem garantia
+}
+
+enum LeaseStatus {
+  DRAFT      // rascunho
+  ACTIVE     // ativo
+  EXPIRED    // vencido sem rescisão formal
+  TERMINATED // rescindido
+}
+
+enum TenantRole {
+  PRIMARY   // inquilino principal
+  GUARANTOR // fiador
+  CO_TENANT // coobrigado
+}
+
+enum ReceivableStatus {
+  PENDING      // previsto, ainda não venceu
+  PAID         // pago integralmente
+  PARTIAL      // pago parcialmente
+  OVERDUE      // vencido e não pago
+  RENEGOTIATED // renegociado
+  WAIVED       // isento
+}
+
+enum PaymentMethod {
+  PIX
+  BANK_TRANSFER // TED / DOC
+  CASH          // dinheiro
+  BOLETO
+  CARD
+}
+
+enum ExpenseCategory {
+  MAINTENANCE   // manutenção e reparos
+  CONDOMINIUM   // taxa de condomínio
+  IPTU          // imposto predial
+  INSURANCE     // seguro do imóvel
+  ADMIN         // taxa administrativa
+  WATER         // água
+  ENERGY        // energia elétrica
+  OTHER         // outros
+}
+
+enum MaintenancePriority {
+  LOW    // baixa
+  MEDIUM // média
+  HIGH   // alta
+  URGENT // urgente
+}
+
+enum MaintenanceStatus {
+  OPEN        // aberto
+  IN_PROGRESS // em andamento
+  WAITING     // aguardando (peça, orçamento, etc.)
+  RESOLVED    // resolvido
+  CLOSED      // encerrado
+}
+
+enum DocumentType {
+  CONTRACT           // contrato de locação
+  CONTRACT_AMENDMENT // aditivo contratual
+  RECEIPT            // recibo de aluguel
+  PAYMENT_PROOF      // comprovante de pagamento
+  INSPECTION         // laudo de vistoria
+  OTHER              // outros
+}
+
+enum NotificationChannel {
+  EMAIL
+  WHATSAPP
+  IN_APP
+}
+
+enum NotificationStatus {
+  SCHEDULED  // agendada
+  SENT       // enviada
+  FAILED     // falhou
+  CANCELLED  // cancelada
+}
+
+enum TransactionDirection {
+  IN  // entrada (crédito)
+  OUT // saída (débito)
+}
+
+enum ReconciliationMatchType {
+  AUTO      // matched automaticamente (score alto)
+  MANUAL    // proprietário confirmou manualmente
+  SUGGESTED // sugestão do sistema (score médio)
+}
+
+enum PlanType {
+  FREE
+  STARTER   // até 5 imóveis
+  PRO       // até 20 imóveis
+  UNLIMITED // sem limite
+}
+
+enum AccountStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+}
+
+// =============================================================
+// ACCOUNTS — Conta de cada proprietário (multi-tenancy)
+// Toda entidade tem account_id para isolamento de dados
+// =============================================================
+
+model Account {
+  id             String        @id @default(cuid())
+  plan           PlanType      @default(FREE)
+  status         AccountStatus @default(TRIAL)
+  trialEndsAt    DateTime?
+  billingEmail   String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  users          User[]
+  properties     Property[]
+  tenants        Tenant[]
+  leaseContracts LeaseContract[]
+  expenses       Expense[]
+  documents      Document[]
+  notifications  Notification[]
+  bankAccounts   BankAccount[]
+
+  @@map("accounts")
+}
+
+// =============================================================
+// USERS — Usuários com acesso à conta
+// =============================================================
+
+model User {
+  id           String   @id @default(cuid())
+  accountId    String
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         UserRole @default(OWNER)
+  locale       String   @default("pt-BR")
+  timezone     String   @default("America/Sao_Paulo")
+  avatarUrl    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  account Account @relation(fields: [accountId], references: [id])
+
+  @@index([accountId])
+  @@map("users")
+}
+
+// =============================================================
+// PROPERTIES — Imóveis do portfólio
+// =============================================================
+
+model Property {
+  id              String       @id @default(cuid())
+  accountId       String
+  name            String
+  type            PropertyType
+  address         String
+  neighborhood    String?
+  city            String
+  state           String
+  zipCode         String
+  acquisitionDate DateTime?
+  acquisitionCost Decimal?     @db.Decimal(12, 2)
+  notes           String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  account            Account             @relation(fields: [accountId], references: [id])
+  units              Unit[]
+  expenses           Expense[]
+  maintenanceTickets MaintenanceTicket[]
+
+  @@index([accountId])
+  @@map("properties")
+}
+
+// =============================================================
+// UNITS — Unidades de um imóvel
+// =============================================================
+
+model Unit {
+  id              String          @id @default(cuid())
+  propertyId      String
+  code            String
+  description     String?
+  area            Decimal?        @db.Decimal(8, 2)
+  bedrooms        Int?
+  bathrooms       Int?
+  parkingSpots    Int?            @default(0)
+  occupancyStatus OccupancyStatus @default(VACANT)
+  monthlyRent     Decimal?        @db.Decimal(12, 2)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  property           Property          @relation(fields: [propertyId], references: [id])
+  leaseContracts     LeaseContract[]
+  expenses           Expense[]
+  maintenanceTickets MaintenanceTicket[]
+  receivables        Receivable[]
+
+  @@index([propertyId])
+  @@map("units")
+}
+
+// =============================================================
+// TENANTS — Inquilinos e fiadores
+// =============================================================
+
+model Tenant {
+  id            String    @id @default(cuid())
+  accountId     String
+  fullName      String
+  email         String?
+  phone         String?
+  cpf           String?
+  rg            String?
+  birthDate     DateTime?
+  employer      String?
+  monthlyIncome Decimal?  @db.Decimal(12, 2)
+  notes         String?
+  consentAt     DateTime?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  account            Account             @relation(fields: [accountId], references: [id])
+  leaseContracts     LeaseTenant[]
+  receivables        Receivable[]
+  maintenanceTickets MaintenanceTicket[]
+
+  @@index([accountId])
+  @@map("tenants")
+}
+
+// =============================================================
+// LEASE_CONTRACTS — Contratos de locação
+// =============================================================
+
+model LeaseContract {
+  id                        String          @id @default(cuid())
+  accountId                 String
+  unitId                    String
+  primaryTenantId           String
+  startDate                 DateTime
+  endDate                   DateTime
+  dueDay                    Int
+  rentAmount                Decimal         @db.Decimal(12, 2)
+  depositAmount             Decimal?        @db.Decimal(12, 2)
+  adjustmentIndex           AdjustmentIndex @default(IGP_M)
+  adjustmentFrequencyMonths Int             @default(12)
+  lateFeeType               LateFeeType     @default(PERCENT)
+  lateFeeValue              Decimal         @db.Decimal(8, 4)
+  interestType              InterestType    @default(DAILY)
+  interestValue             Decimal         @db.Decimal(8, 4)
+  guaranteeType             GuaranteeType   @default(NONE)
+  status                    LeaseStatus     @default(DRAFT)
+  notes                     String?
+  terminationDate           DateTime?
+  terminationReason         String?
+  createdAt                 DateTime        @default(now())
+  updatedAt                 DateTime        @updatedAt
+
+  account         Account          @relation(fields: [accountId], references: [id])
+  unit            Unit             @relation(fields: [unitId], references: [id])
+  leaseTenants    LeaseTenant[]
+  chargeSchedules ChargeSchedule[]
+  receivables     Receivable[]
+  expenses        Expense[]
+  documents       Document[]
+
+  @@index([accountId])
+  @@index([unitId])
+  @@index([status])
+  @@map("lease_contracts")
+}
+
+model LeaseTenant {
+  id              String     @id @default(cuid())
+  leaseContractId String
+  tenantId        String
+  role            TenantRole @default(PRIMARY)
+  createdAt       DateTime   @default(now())
+
+  leaseContract LeaseContract @relation(fields: [leaseContractId], references: [id])
+  tenant        Tenant        @relation(fields: [tenantId], references: [id])
+
+  @@unique([leaseContractId, tenantId])
+  @@map("lease_tenants")
+}
+
+model ChargeSchedule {
+  id              String           @id @default(cuid())
+  leaseContractId String
+  chargeType      String
+  startDate       DateTime
+  endDate         DateTime?
+  amount          Decimal          @db.Decimal(12, 2)
+  recurrenceRule  String?
+  indexRule       AdjustmentIndex?
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  leaseContract LeaseContract @relation(fields: [leaseContractId], references: [id])
+
+  @@index([leaseContractId])
+  @@map("charge_schedules")
+}
+
+// =============================================================
+// RECEIVABLES — Cobranças mensais materializadas
+// =============================================================
+
+model Receivable {
+  id              String           @id @default(cuid())
+  leaseContractId String
+  unitId          String
+  tenantId        String
+  competencyMonth String           // "2025-07"
+  dueDate         DateTime
+  originalAmount  Decimal          @db.Decimal(12, 2)
+  penaltiesAmount Decimal          @default(0) @db.Decimal(12, 2)
+  discountAmount  Decimal          @default(0) @db.Decimal(12, 2)
+  paidAmount      Decimal          @default(0) @db.Decimal(12, 2)
+  balanceAmount   Decimal          @db.Decimal(12, 2)
+  status          ReceivableStatus @default(PENDING)
+  overdueDays     Int              @default(0)
+  lateFeeApplied  Boolean          @default(false)
+  interestApplied Boolean          @default(false)
+  notes           String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  leaseContract         LeaseContract         @relation(fields: [leaseContractId], references: [id])
+  unit                  Unit                  @relation(fields: [unitId], references: [id])
+  tenant                Tenant                @relation(fields: [tenantId], references: [id])
+  payments              Payment[]
+  reconciliationMatches ReconciliationMatch[]
+
+  @@unique([leaseContractId, competencyMonth])
+  @@index([status])
+  @@index([dueDate])
+  @@map("receivables")
+}
+
+// =============================================================
+// PAYMENTS — Pagamentos de uma receivable
+// =============================================================
+
+model Payment {
+  id                String        @id @default(cuid())
+  receivableId      String
+  paymentDate       DateTime
+  amount            Decimal       @db.Decimal(12, 2)
+  method            PaymentMethod @default(PIX)
+  externalReference String?
+  bankAccountId     String?
+  proofFileId       String?
+  notes             String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  receivable  Receivable   @relation(fields: [receivableId], references: [id])
+  bankAccount BankAccount? @relation(fields: [bankAccountId], references: [id])
+
+  @@index([receivableId])
+  @@map("payments")
+}
+
+// =============================================================
+// EXPENSES — Despesas do imóvel/unidade
+// =============================================================
+
+model Expense {
+  id              String          @id @default(cuid())
+  accountId       String
+  propertyId      String
+  unitId          String?
+  leaseContractId String?
+  category        ExpenseCategory
+  supplierName    String?
+  description     String
+  referenceMonth  String?
+  dueDate         DateTime
+  paidDate        DateTime?
+  amount          Decimal         @db.Decimal(12, 2)
+  isPaid          Boolean         @default(false)
+  isRecoverable   Boolean         @default(false)
+  receiptFileId   String?
+  notes           String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  account       Account        @relation(fields: [accountId], references: [id])
+  property      Property       @relation(fields: [propertyId], references: [id])
+  unit          Unit?          @relation(fields: [unitId], references: [id])
+  leaseContract LeaseContract? @relation(fields: [leaseContractId], references: [id])
+
+  @@index([accountId])
+  @@index([propertyId])
+  @@map("expenses")
+}
+
+// =============================================================
+// MAINTENANCE_TICKETS — Chamados de manutenção
+// =============================================================
+
+model MaintenanceTicket {
+  id            String              @id @default(cuid())
+  propertyId    String
+  unitId        String?
+  tenantId      String?
+  title         String
+  description   String?
+  priority      MaintenancePriority @default(MEDIUM)
+  status        MaintenanceStatus   @default(OPEN)
+  openedAt      DateTime            @default(now())
+  closedAt      DateTime?
+  estimatedCost Decimal?            @db.Decimal(12, 2)
+  actualCost    Decimal?            @db.Decimal(12, 2)
+  supplierName  String?
+  notes         String?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  property Property @relation(fields: [propertyId], references: [id])
+  unit     Unit?    @relation(fields: [unitId], references: [id])
+  tenant   Tenant?  @relation(fields: [tenantId], references: [id])
+
+  @@index([propertyId])
+  @@index([status])
+  @@map("maintenance_tickets")
+}
+
+// =============================================================
+// DOCUMENTS — PDFs e arquivos gerados/armazenados
+// =============================================================
+
+model Document {
+  id              String       @id @default(cuid())
+  accountId       String
+  leaseContractId String?
+  entityType      String
+  entityId        String
+  documentType    DocumentType
+  fileName        String
+  filePath        String
+  mimeType        String       @default("application/pdf")
+  fileSizeBytes   Int?
+  hashSha256      String?
+  version         Int          @default(1)
+  generatedAt     DateTime     @default(now())
+  createdAt       DateTime     @default(now())
+
+  account       Account        @relation(fields: [accountId], references: [id])
+  leaseContract LeaseContract? @relation(fields: [leaseContractId], references: [id])
+
+  @@index([accountId])
+  @@index([entityType, entityId])
+  @@map("documents")
+}
+
+// =============================================================
+// NOTIFICATIONS — Log de notificações
+// =============================================================
+
+model Notification {
+  id             String              @id @default(cuid())
+  accountId      String
+  channel        NotificationChannel
+  templateKey    String
+  recipient      String
+  scheduledAt    DateTime
+  sentAt         DateTime?
+  status         NotificationStatus  @default(SCHEDULED)
+  idempotencyKey String              @unique
+  payload        Json?
+  errorMessage   String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  account Account @relation(fields: [accountId], references: [id])
+
+  @@index([accountId])
+  @@index([status, scheduledAt])
+  @@map("notifications")
+}
+
+// =============================================================
+// BANK_ACCOUNTS — Contas bancárias do proprietário
+// =============================================================
+
+model BankAccount {
+  id                  String   @id @default(cuid())
+  accountId           String
+  institutionName     String
+  branch              String?
+  maskedAccount       String
+  integrationProvider String?
+  isActive            Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  account          Account           @relation(fields: [accountId], references: [id])
+  bankTransactions BankTransaction[]
+  payments         Payment[]
+
+  @@index([accountId])
+  @@map("bank_accounts")
+}
+
+// =============================================================
+// BANK_TRANSACTIONS — Transações importadas do banco
+// =============================================================
+
+model BankTransaction {
+  id              String               @id @default(cuid())
+  bankAccountId   String
+  transactionDate DateTime
+  amount          Decimal              @db.Decimal(12, 2)
+  description     String
+  externalId      String?
+  direction       TransactionDirection
+  rawPayload      Json?
+  isReconciled    Boolean              @default(false)
+  createdAt       DateTime             @default(now())
+
+  bankAccount           BankAccount           @relation(fields: [bankAccountId], references: [id])
+  reconciliationMatches ReconciliationMatch[]
+
+  @@index([bankAccountId])
+  @@index([transactionDate])
+  @@map("bank_transactions")
+}
+
+// =============================================================
+// RECONCILIATION_MATCHES — Conciliação bancária
+// =============================================================
+
+model ReconciliationMatch {
+  id                String                  @id @default(cuid())
+  bankTransactionId String
+  receivableId      String
+  confidenceScore   Decimal                 @db.Decimal(4, 3)
+  matchType         ReconciliationMatchType
+  matchedBy         String?
+  matchedAt         DateTime                @default(now())
+
+  bankTransaction BankTransaction @relation(fields: [bankTransactionId], references: [id])
+  receivable      Receivable      @relation(fields: [receivableId], references: [id])
+
+  @@unique([bankTransactionId, receivableId])
+  @@map("reconciliation_matches")
+}
