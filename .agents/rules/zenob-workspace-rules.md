@@ -1,0 +1,9 @@
+- Sempre ler CONTEXTO.md antes de qualquer tarefa
+- Criar módulos em src/modules/nome-do-modulo/
+- Cada módulo tem: *.module.ts, *.controller.ts, *.service.ts
+- Instanciar PrismaClient sem opcoes: new PrismaClient()
+- Registrar todo novo modulo no app.module.ts
+- Comentarios em portugues brasileiro
+- Nunca modificar o arquivo .env
+- Nunca atualizar o Prisma alem da versao 5.22.0
+- Rodar servidor: DATABASE_URL="postgresql://zenob:zenob123@localhost:5432/zenob_dev?schema=public" ./node_modules/.bin/ts-node --transpile-only src/main.ts
