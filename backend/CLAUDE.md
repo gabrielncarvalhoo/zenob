@@ -9,13 +9,17 @@ zenob/
 └── zenob-web/   → Next.js 14 + Tailwind + shadcn/ui
 
 ## Como rodar o backend
+```bash
 docker start zenob-db
 cd ~/zenob/backend
 DATABASE_URL="postgresql://zenob:zenob123@localhost:5432/zenob_dev?schema=public" ./node_modules/.bin/ts-node --transpile-only src/main.ts
+```
 
 ## Como rodar o frontend
+```bash
 cd ~/zenob/zenob-web
 npm run dev
+```
 
 ## API
 Base URL: http://localhost:3000/api/v1
