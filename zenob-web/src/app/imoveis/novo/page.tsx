@@ -10,7 +10,7 @@ import { z } from 'zod';
 const propertySchema = z.object({
   name: z.string().min(1, 'Nome é obrigatório'),
   type: z.enum(['HOUSE', 'APARTMENT', 'COMMERCIAL', 'LAND', 'OTHER'], {
-    required_error: 'Tipo é obrigatório',
+    message: 'Tipo é obrigatório',
   }),
   zipCode: z.string().min(8, 'CEP inválido'),
   address: z.string().min(1, 'Endereço é obrigatório'),
@@ -21,8 +21,8 @@ const propertySchema = z.object({
   waterRegistration: z.string().min(1, 'Matrícula de Água é obrigatória'),
   energyRegistration: z.string().min(1, 'Matrícula de Energia é obrigatória'),
   deedNumber: z.string().optional(),
-  acquisitionDate: z.string().optional().transform(v => v === '' ? undefined : v),
-  acquisitionCost: z.string().optional().transform(v => v === '' || v === undefined ? undefined : Number(v)),
+  acquisitionDate: z.string().optional(),
+  acquisitionCost: z.string().optional(),
   notes: z.string().optional(),
 });
 
@@ -61,7 +61,7 @@ export default function NovoImovelPage() {
           setValue('address', data.logradouro);
           setValue('neighborhood', data.bairro);
           setValue('city', data.localidade);
-          setValue('state', data.uf as any);
+          setValue('state', data.uf as PropertyFormValues['state']);
         }
       } catch (error) {
         console.error('Erro ao buscar CEP', error);
@@ -72,10 +72,16 @@ export default function NovoImovelPage() {
   const onSubmit = async (data: PropertyFormValues) => {
     setErrorMsg(null);
     try {
+      const payload = {
+        ...data,
+        acquisitionDate: data.acquisitionDate === '' ? undefined : data.acquisitionDate,
+        acquisitionCost: data.acquisitionCost === '' || data.acquisitionCost === undefined ? undefined : Number(data.acquisitionCost),
+      };
+
       const res = await fetch('http://localhost:3000/api/v1/properties', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
@@ -85,8 +91,8 @@ export default function NovoImovelPage() {
 
       router.push('/imoveis');
       router.refresh();
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Ocorreu um erro interno.');
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Ocorreu um erro interno.');
     }
   };
 
