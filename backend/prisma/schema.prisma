@@ -228,8 +228,12 @@ model Property {
   neighborhood    String?
   city            String
   state           String
-  zipCode         String
-  acquisitionDate DateTime?
+  zipCode            String
+  iptuCode           String?   // inscrição imobiliária IPTU
+  waterRegistration  String?   // matrícula de água (Cagepa)
+  energyRegistration String?   // matrícula de energia (Energisa)
+  deedNumber         String?   // número da escritura
+  acquisitionDate    DateTime?
   acquisitionCost Decimal?     @db.Decimal(12, 2)
   notes           String?
   createdAt       DateTime     @default(now())

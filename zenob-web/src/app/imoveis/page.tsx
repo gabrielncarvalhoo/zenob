@@ -44,9 +44,12 @@ export default async function ImoveisPage() {
     <div className="container mx-auto py-8 px-4 max-w-6xl">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Imóveis</h1>
-        <button className="bg-[#3B6D11] hover:bg-[#27500A] text-white px-4 py-2 rounded-md font-medium transition-colors">
+        <Link 
+          href="/imoveis/novo"
+          className="bg-[#3B6D11] hover:bg-[#27500A] text-white px-4 py-2 rounded-md font-medium transition-colors cursor-pointer"
+        >
           + Novo imóvel
-        </button>
+        </Link>
       </div>
 
       {properties.length === 0 ? (
