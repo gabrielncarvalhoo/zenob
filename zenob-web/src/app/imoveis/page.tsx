@@ -3,7 +3,7 @@ import Link from 'next/link';
 interface Property {
   id: string;
   name: string;
-  type: 'HOUSE' | 'APARTMENT' | 'COMMERCIAL' | 'LAND' | 'OTHER';
+  type: 'HOUSE' | 'APARTMENT' | 'COMMERCIAL' | 'LAND' | 'BUILDING' | 'OTHER';
   address: string;
   city: string;
   state: string;
@@ -34,6 +34,7 @@ const PROPERTY_TYPE_MAP: Record<string, string> = {
   APARTMENT: 'Apartamento',
   COMMERCIAL: 'Comercial',
   LAND: 'Terreno',
+  BUILDING: 'Prédio / Edifício',
   OTHER: 'Outro',
 };
 

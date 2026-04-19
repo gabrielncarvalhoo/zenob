@@ -3,13 +3,14 @@ import Link from 'next/link';
 interface Property {
   id: string;
   name: string;
-  type: 'HOUSE' | 'APARTMENT' | 'COMMERCIAL' | 'LAND' | 'OTHER';
+  type: 'HOUSE' | 'APARTMENT' | 'COMMERCIAL' | 'LAND' | 'COMPLEX' | 'OTHER';
   address: string;
   city: string;
   state: string;
   zipCode: string;
   totalUnits: number;
   createdAt: string;
+  units?: Unit[];
 }
 
 interface Unit {
@@ -22,6 +23,9 @@ interface Unit {
   bathrooms: number;
   monthlyRent: number;
   occupancyStatus: 'VACANT' | 'OCCUPIED' | 'MAINTENANCE';
+  iptuCode?: string;
+  waterRegistration?: string;
+  energyRegistration?: string;
   leaseContracts?: Array<{
     status: string;
     leaseTenants: Array<{
@@ -51,20 +55,7 @@ async function getProperty(id: string): Promise<Property | null> {
   }
 }
 
-async function getPropertyUnits(id: string): Promise<Unit[]> {
-  try {
-    const res = await fetch(`http://localhost:3000/api/v1/properties/${id}/units`, {
-      cache: 'no-store',
-    });
-    if (!res.ok) {
-      throw new Error(`Failed to fetch units: ${res.statusText}`);
-    }
-    return res.json();
-  } catch (error) {
-    console.error(error);
-    return [];
-  }
-}
+
 
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('pt-BR', {
@@ -93,14 +84,12 @@ const PROPERTY_TYPE_MAP: Record<string, string> = {
   APARTMENT: 'Apartamento',
   COMMERCIAL: 'Comercial',
   LAND: 'Terreno',
+  COMPLEX: 'Complexo',
   OTHER: 'Outro',
 };
 
 export default async function ImovelDetalhePage({ params }: { params: { id: string } }) {
-  const propertyPromise = getProperty(params.id);
-  const unitsPromise = getPropertyUnits(params.id);
-
-  const [property, units] = await Promise.all([propertyPromise, unitsPromise]);
+  const property = await getProperty(params.id);
 
   if (!property) {
     return (
@@ -114,6 +103,7 @@ export default async function ImovelDetalhePage({ params }: { params: { id: stri
   }
 
   const typeLabel = PROPERTY_TYPE_MAP[property.type] || property.type;
+  const units = property.units || [];
 
   return (
     <div className="container mx-auto py-8 px-4 max-w-6xl">
@@ -159,6 +149,7 @@ export default async function ImovelDetalhePage({ params }: { params: { id: stri
               <thead className="bg-white border-b border-gray-200 text-gray-600">
                 <tr>
                   <th className="px-6 py-3 font-semibold">Código</th>
+                  <th className="px-6 py-3 font-semibold">Matrículas</th>
                   <th className="px-6 py-3 font-semibold">Descrição</th>
                   <th className="px-6 py-3 font-semibold">Inquilino(s)</th>
                   <th className="px-6 py-3 font-semibold">Aluguel</th>
@@ -175,6 +166,11 @@ export default async function ImovelDetalhePage({ params }: { params: { id: stri
                   return (
                     <tr key={unit.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 font-medium text-gray-900">{unit.code}</td>
+                      <td className="px-6 py-4 text-xs text-gray-500">
+                        {unit.iptuCode && <div>IPTU: {unit.iptuCode}</div>}
+                        {unit.waterRegistration && <div>Água: {unit.waterRegistration}</div>}
+                        {unit.energyRegistration && <div>Energia: {unit.energyRegistration}</div>}
+                      </td>
                       <td className="px-6 py-4 text-gray-600">{unit.description}</td>
                       <td className="px-6 py-4 text-gray-600">
                         {unit.occupancyStatus === 'VACANT' || !unit.leaseContracts ? (

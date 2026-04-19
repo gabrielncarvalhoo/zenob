@@ -30,6 +30,7 @@ enum PropertyType {
   APARTMENT   // apartamento
   COMMERCIAL  // imóvel comercial
   LAND        // terreno
+  COMPLEX     // complexo: condomínio, galeria, feira, etc
   OTHER       // outro
 }
 
@@ -256,6 +257,9 @@ model Unit {
   id              String          @id @default(cuid())
   propertyId      String
   code            String
+  iptuCode           String?  // inscrição imobiliária IPTU da unidade
+  waterRegistration  String?  // matrícula de água da unidade
+  energyRegistration String?  // matrícula de energia da unidade
   description     String?
   area            Decimal?        @db.Decimal(8, 2)
   bedrooms        Int?

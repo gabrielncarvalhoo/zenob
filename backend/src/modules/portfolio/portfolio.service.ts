@@ -37,9 +37,22 @@ export class PortfolioService {
   }
 
   async createProperty(accountId: string, data: any) {
-    return prisma.property.create({
+    const property = await prisma.property.create({
       data: { ...data, accountId },
     });
+
+    // Se não for prédio, cria 1 unidade padrão automaticamente
+    if (property.type !== 'COMPLEX') {
+      await prisma.unit.create({
+        data: {
+          propertyId: property.id,
+          code: 'Principal',
+          occupancyStatus: 'VACANT',
+        },
+      });
+    }
+
+    return property;
   }
 
   async updateProperty(id: string, accountId: string, data: any) {
