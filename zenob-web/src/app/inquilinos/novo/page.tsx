@@ -34,10 +34,7 @@ const maskCurrency = (value: string) => {
   }).format(num);
 };
 
-const currencyToNumber = (value: string) => {
-  const onlyNumbers = value.replace(/\D/g, "");
-  return onlyNumbers ? parseInt(onlyNumbers, 10) / 100 : 0;
-};
+
 
 const tenantSchema = z.object({
   fullName: z.string().min(1, "O nome completo é obrigatório"),
@@ -95,12 +92,21 @@ export default function NovoInquilinoPage() {
     setErrorMsg("");
 
     try {
+      let parsedIncome = undefined;
+      if (data.monthlyIncome) {
+        const parsed = parseFloat(data.monthlyIncome.replace(/[^0-9,]/g, '').replace(',', '.'));
+        if (!isNaN(parsed) && parsed > 0) {
+          parsedIncome = parsed;
+        }
+      }
+
       const payload = {
         ...data,
-        monthlyIncome: data.monthlyIncome ? currencyToNumber(data.monthlyIncome) : undefined,
+        monthlyIncome: parsedIncome,
+        birthDate: data.birthDate ? new Date(data.birthDate).toISOString() : null,
       };
 
-      const response = await fetch("/api/v1/tenants", {
+      const response = await fetch("http://localhost:3000/api/v1/tenants", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
