@@ -22,6 +22,17 @@ interface Unit {
   bathrooms: number;
   monthlyRent: number;
   occupancyStatus: 'VACANT' | 'OCCUPIED' | 'MAINTENANCE';
+  leaseContracts?: Array<{
+    status: string;
+    leaseTenants: Array<{
+      tenant: {
+        id: string;
+        fullName: string;
+        email: string;
+        phone: string;
+      }
+    }>;
+  }>;
 }
 
 async function getProperty(id: string): Promise<Property | null> {
@@ -149,6 +160,7 @@ export default async function ImovelDetalhePage({ params }: { params: { id: stri
                 <tr>
                   <th className="px-6 py-3 font-semibold">Código</th>
                   <th className="px-6 py-3 font-semibold">Descrição</th>
+                  <th className="px-6 py-3 font-semibold">Inquilino(s)</th>
                   <th className="px-6 py-3 font-semibold">Aluguel</th>
                   <th className="px-6 py-3 font-semibold text-right">Status</th>
                 </tr>
@@ -164,6 +176,23 @@ export default async function ImovelDetalhePage({ params }: { params: { id: stri
                     <tr key={unit.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 font-medium text-gray-900">{unit.code}</td>
                       <td className="px-6 py-4 text-gray-600">{unit.description}</td>
+                      <td className="px-6 py-4 text-gray-600">
+                        {unit.occupancyStatus === 'VACANT' || !unit.leaseContracts ? (
+                          '-'
+                        ) : (
+                          unit.leaseContracts
+                            .filter(lc => lc.status === 'ACTIVE')
+                            .flatMap(lc => lc.leaseTenants)
+                            .map((lt, idx, arr) => (
+                              <span key={lt.tenant.id}>
+                                <Link href={`/inquilinos/${lt.tenant.id}`} className="hover:text-[#3B6D11] hover:underline transition-colors block md:inline">
+                                  {lt.tenant.fullName}
+                                </Link>
+                                {idx < arr.length - 1 ? ', ' : ''}
+                              </span>
+                            ))
+                        )}
+                      </td>
                       <td className="px-6 py-4 text-gray-600">{formatCurrency(unit.monthlyRent)}</td>
                       <td className="px-6 py-4 text-right">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${status.className}`}>

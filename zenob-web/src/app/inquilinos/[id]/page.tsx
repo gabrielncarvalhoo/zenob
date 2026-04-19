@@ -12,6 +12,23 @@ interface Tenant {
   monthlyIncome: number;
   notes: string | null;
   createdAt: string;
+  leaseContracts?: Array<{
+    leaseContract: {
+      id: string;
+      status: string;
+      rentAmount: number;
+      startDate: string;
+      endDate: string;
+      unit: {
+        code: string;
+        property: {
+          id: string;
+          name: string;
+          address: string;
+        };
+      };
+    };
+  }>;
 }
 
 async function getTenant(id: string): Promise<Tenant | null> {
@@ -118,6 +135,40 @@ export default async function DetalheInquilinoPage({ params }: { params: { id: s
               <span className="text-sm font-medium text-gray-500 block mb-1">Renda mensal</span>
               <span className="text-base text-gray-900 font-medium">{formattedIncome}</span>
             </div>
+          </div>
+
+          <div className="mt-8">
+            <h2 className="text-lg font-semibold text-gray-900 mb-6 border-b border-gray-100 pb-2">Imóveis alugados</h2>
+            {!tenant.leaseContracts || tenant.leaseContracts.length === 0 ? (
+              <div className="bg-gray-50 p-6 rounded-lg border border-gray-200 text-center text-gray-500">
+                Nenhum imóvel vinculado
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {tenant.leaseContracts.map(({ leaseContract }) => (
+                  <div key={leaseContract.id} className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <Link href={`/imoveis/${leaseContract.unit.property.id}`} className="text-lg font-bold text-gray-900 hover:text-[#3B6D11] transition-colors">
+                          {leaseContract.unit.property.name}
+                        </Link>
+                        <p className="text-sm text-gray-500 mt-1">{leaseContract.unit.property.address}</p>
+                      </div>
+                      <div>
+                        {leaseContract.status === 'ACTIVE' && <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#EAF3DE] text-[#3B6D11]">Ativo</span>}
+                        {leaseContract.status === 'DRAFT' && <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#F3F4F6] text-[#6B7280]">Rascunho</span>}
+                        {leaseContract.status === 'EXPIRED' && <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#FAEEDA] text-[#633806]">Vencido</span>}
+                        {leaseContract.status === 'TERMINATED' && <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#FCEBEB] text-[#791F1F]">Rescindido</span>}
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-center text-sm border-t border-gray-100 pt-3">
+                      <span className="font-medium text-gray-700">Unidade: {leaseContract.unit.code}</span>
+                      <span className="font-semibold text-gray-900">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(leaseContract.rentAmount)}/mês</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {tenant.notes && (

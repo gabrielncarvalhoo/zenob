@@ -17,7 +17,22 @@ export class PortfolioService {
   async findOneProperty(id: string, accountId: string) {
     return prisma.property.findFirst({
       where: { id, accountId },
-      include: { units: true },
+      include: {
+        units: {
+          include: {
+            leaseContracts: {
+              where: { status: 'ACTIVE' },
+              include: {
+                leaseTenants: {
+                  include: {
+                    tenant: { select: { id: true, fullName: true, email: true, phone: true } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
     });
   }
 

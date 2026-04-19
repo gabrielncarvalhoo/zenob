@@ -16,6 +16,21 @@ export class TenantsService {
   async findOneTenant(id: string, accountId: string) {
     return prisma.tenant.findFirst({
       where: { id, accountId },
+      include: {
+        leaseContracts: {
+          include: {
+            leaseContract: {
+              include: {
+                unit: {
+                  include: {
+                    property: { select: { id: true, name: true, address: true } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     });
   }
 
