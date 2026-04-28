@@ -105,9 +105,9 @@ export default async function DespesasPage({
     <div className="container mx-auto py-8 px-4 max-w-6xl">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-gray-900">Despesas</h1>
-        <button className="bg-[#3B6D11] hover:bg-[#27500A] text-white px-4 py-2 rounded-md font-medium transition-colors cursor-pointer">
+        <Link href="/despesas/novo" className="bg-[#3B6D11] hover:bg-[#27500A] text-white px-4 py-2 rounded-md font-medium transition-colors cursor-pointer inline-block">
           + Nova despesa
-        </button>
+        </Link>
       </div>
 
       <div className="flex gap-4 border-b border-gray-200 mb-6 overflow-x-auto">
@@ -138,9 +138,9 @@ export default async function DespesasPage({
               : 'Nenhuma despesa corresponde ao filtro selecionado.'}
           </p>
           {currentStatus === 'ALL' && (
-            <button className="bg-[#3B6D11] hover:bg-[#27500A] text-white px-4 py-2 rounded-md font-medium transition-colors cursor-pointer">
+            <Link href="/despesas/novo" className="bg-[#3B6D11] hover:bg-[#27500A] text-white px-4 py-2 rounded-md font-medium transition-colors cursor-pointer inline-block">
               Registrar primeira despesa
-            </button>
+            </Link>
           )}
         </div>
       ) : (

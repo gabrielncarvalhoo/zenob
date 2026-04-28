@@ -13,7 +13,7 @@ const leaseSchema = z.object({
   primaryTenantId: z.string().min(1, 'Inquilino é obrigatório'),
   startDate: z.string().min(1, 'Data de início é obrigatória'),
   endDate: z.string().min(1, 'Data de término é obrigatória'),
-  dueDay: z.number({ invalid_type_error: 'Dia de vencimento é obrigatório' }).min(1, 'Dia mínimo é 1').max(31, 'Dia máximo é 31'),
+  dueDay: z.number().min(1, 'Dia mínimo é 1').max(31, 'Dia máximo é 31'),
   rentAmount: z.string().min(1, 'Valor do aluguel é obrigatório'),
   depositAmount: z.string().optional(),
   adjustmentIndex: z.enum(['IGP_M', 'IPCA', 'INPC', 'FIXED']),
