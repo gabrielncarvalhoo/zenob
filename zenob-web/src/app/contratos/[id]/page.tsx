@@ -3,8 +3,6 @@ import { notFound } from 'next/navigation';
 
 interface LeaseContract {
   id: string;
-  unitId: string;
-  primaryTenantId: string;
   startDate: string;
   endDate: string;
   dueDay: number;
@@ -16,6 +14,25 @@ interface LeaseContract {
   status: 'DRAFT' | 'ACTIVE' | 'EXPIRED' | 'TERMINATED';
   notes: string | null;
   terminationDate: string | null;
+  unit?: {
+    code: string;
+    property?: {
+      name: string;
+      address: string;
+      iptuCode: string | null;
+      waterRegistration: string | null;
+      energyRegistration: string | null;
+    };
+  };
+  leaseTenants?: Array<{
+    role: string;
+    tenant: {
+      fullName: string;
+      email: string;
+      phone: string;
+      cpf: string;
+    };
+  }>;
 }
 
 async function getLease(id: string): Promise<LeaseContract | null> {
@@ -114,7 +131,65 @@ export default async function DetalheContratoPage({ params }: { params: { id: st
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-8">
         <div className="p-8">
-          <h2 className="text-lg font-semibold text-gray-900 mb-6 border-b border-gray-100 pb-2">Informações Financeiras</h2>
+          <h2 className="text-lg font-semibold text-gray-900 mb-6 border-b border-gray-100 pb-2">1. Imóvel</h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-8 mb-8">
+            <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
+              <span className="text-sm font-medium text-gray-500 block mb-1">Nome do imóvel</span>
+              <span className="text-base text-gray-900 font-medium">{lease.unit?.property?.name || '-'}</span>
+            </div>
+            
+            <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
+              <span className="text-sm font-medium text-gray-500 block mb-1">Endereço</span>
+              <span className="text-base text-gray-900 font-medium">{lease.unit?.property?.address || '-'}</span>
+            </div>
+
+            <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
+              <span className="text-sm font-medium text-gray-500 block mb-1">Unidade</span>
+              <span className="text-base text-gray-900 font-medium">{lease.unit?.code || '-'}</span>
+            </div>
+
+            <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
+              <span className="text-sm font-medium text-gray-500 block mb-1">IPTU</span>
+              <span className="text-base text-gray-900 font-medium">{lease.unit?.property?.iptuCode || 'Não informado'}</span>
+            </div>
+
+            <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
+              <span className="text-sm font-medium text-gray-500 block mb-1">Matrícula de água</span>
+              <span className="text-base text-gray-900 font-medium">{lease.unit?.property?.waterRegistration || 'Não informado'}</span>
+            </div>
+
+            <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
+              <span className="text-sm font-medium text-gray-500 block mb-1">Matrícula de energia</span>
+              <span className="text-base text-gray-900 font-medium">{lease.unit?.property?.energyRegistration || 'Não informado'}</span>
+            </div>
+          </div>
+
+          <h2 className="text-lg font-semibold text-gray-900 mb-6 border-b border-gray-100 pb-2">2. Inquilino</h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-8 mb-8">
+            <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
+              <span className="text-sm font-medium text-gray-500 block mb-1">Nome completo</span>
+              <span className="text-base text-gray-900 font-medium">{lease.leaseTenants?.[0]?.tenant?.fullName || '-'}</span>
+            </div>
+            
+            <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
+              <span className="text-sm font-medium text-gray-500 block mb-1">E-mail</span>
+              <span className="text-base text-gray-900 font-medium">{lease.leaseTenants?.[0]?.tenant?.email || '-'}</span>
+            </div>
+
+            <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
+              <span className="text-sm font-medium text-gray-500 block mb-1">Telefone</span>
+              <span className="text-base text-gray-900 font-medium">{lease.leaseTenants?.[0]?.tenant?.phone || '-'}</span>
+            </div>
+
+            <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
+              <span className="text-sm font-medium text-gray-500 block mb-1">CPF</span>
+              <span className="text-base text-gray-900 font-medium">{lease.leaseTenants?.[0]?.tenant?.cpf || '-'}</span>
+            </div>
+          </div>
+
+          <h2 className="text-lg font-semibold text-gray-900 mb-6 border-b border-gray-100 pb-2">3. Condições</h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-8 mb-8">
             <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm">

@@ -15,6 +15,16 @@ interface LeaseContract {
   status: 'DRAFT' | 'ACTIVE' | 'EXPIRED' | 'TERMINATED';
   notes: string | null;
   terminationDate: string | null;
+  unit?: {
+    property?: {
+      name: string;
+    };
+  };
+  leaseTenants?: Array<{
+    tenant: {
+      fullName: string;
+    };
+  }>;
 }
 
 async function getLeases(): Promise<LeaseContract[]> {
@@ -86,11 +96,12 @@ export default async function ContratosPage() {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
             <div className="min-w-[900px] w-full">
-              <div className="grid grid-cols-[1fr_1fr_1.5fr_1fr_1.5fr_1.5fr] bg-gray-50 border-b border-gray-200 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              <div className="grid grid-cols-[1fr_1.5fr_1.5fr_1.5fr_1fr_1fr_1fr] bg-gray-50 border-b border-gray-200 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                 <div className="px-6 py-4">Status</div>
-                <div className="px-6 py-4">Unidade</div>
+                <div className="px-6 py-4">Imóvel</div>
+                <div className="px-6 py-4">Inquilino</div>
                 <div className="px-6 py-4">Aluguel</div>
-                <div className="px-6 py-4">Vencimento</div>
+                <div className="px-6 py-4">Venc.</div>
                 <div className="px-6 py-4">Início</div>
                 <div className="px-6 py-4">Término</div>
               </div>
@@ -99,13 +110,16 @@ export default async function ContratosPage() {
                   <Link 
                     href={`/contratos/${lease.id}`} 
                     key={lease.id} 
-                    className="grid grid-cols-[1fr_1fr_1.5fr_1fr_1.5fr_1.5fr] hover:bg-gray-50 transition-colors items-center group cursor-pointer"
+                    className="grid grid-cols-[1fr_1.5fr_1.5fr_1.5fr_1fr_1fr_1fr] hover:bg-gray-50 transition-colors items-center group cursor-pointer"
                   >
                     <div className="px-6 py-4 whitespace-nowrap">
                       {getStatusBadge(lease.status)}
                     </div>
-                    <div className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 group-hover:text-[#3B6D11] transition-colors">
-                      {lease.unitId}
+                    <div className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 group-hover:text-[#3B6D11] transition-colors truncate">
+                      {lease.unit?.property?.name || '-'}
+                    </div>
+                    <div className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 truncate">
+                      {lease.leaseTenants?.[0]?.tenant?.fullName || '-'}
                     </div>
                     <div className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       {formatCurrency(lease.rentAmount)}

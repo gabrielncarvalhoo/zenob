@@ -9,15 +9,15 @@ import { z } from 'zod';
 
 const leaseSchema = z.object({
   propertyId: z.string().min(1, 'Imóvel é obrigatório'),
-  unitId: z.string().min(1, 'Unidade é obrigatória'),
+  unitId: z.string().min(1, 'Selecione uma unidade'),
   primaryTenantId: z.string().min(1, 'Inquilino é obrigatório'),
   startDate: z.string().min(1, 'Data de início é obrigatória'),
   endDate: z.string().min(1, 'Data de término é obrigatória'),
-  dueDay: z.number().min(1, 'Dia mínimo é 1').max(31, 'Dia máximo é 31'),
-  rentAmount: z.string().min(1, 'Valor do aluguel é obrigatório'),
-  depositAmount: z.string().optional(),
+  dueDay: z.coerce.number().min(1, 'Dia mínimo é 1').max(31, 'Dia máximo é 31'),
+  rentAmount: z.coerce.number().min(0.01, 'Valor do aluguel é obrigatório'),
+  depositAmount: z.coerce.number().optional(),
   adjustmentIndex: z.enum(['IGP_M', 'IPCA', 'INPC', 'FIXED']),
-  adjustmentFrequencyMonths: z.number().min(1, 'Mínimo de 1 mês'),
+  adjustmentFrequencyMonths: z.coerce.number().min(1, 'Mínimo de 1 mês'),
   guaranteeType: z.enum(['DEPOSIT', 'SURETY', 'INSURANCE', 'NONE']),
   notes: z.string().optional(),
 });
@@ -55,7 +55,8 @@ export default function NovoContratoPage() {
     setValue,
     formState: { errors, isSubmitting },
   } = useForm<LeaseFormValues>({
-    resolver: zodResolver(leaseSchema),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    resolver: zodResolver(leaseSchema) as any,
     defaultValues: {
       adjustmentIndex: 'IGP_M',
       adjustmentFrequencyMonths: 12,
@@ -94,8 +95,8 @@ export default function NovoContratoPage() {
             
             const selectedProp = properties.find(p => p.id === selectedPropertyId);
             if (selectedProp && selectedProp.type !== 'COMPLEX') {
-              if (fetchedUnits.length > 0) {
-                setValue('unitId', fetchedUnits[0].id);
+              if (fetchedUnits.length === 1) {
+                setValue('unitId', fetchedUnits[0].id, { shouldValidate: true, shouldDirty: true });
               }
             } else {
               setValue('unitId', '');
@@ -116,6 +117,7 @@ export default function NovoContratoPage() {
   const showUnitSelect = selectedProperty && selectedProperty.type === 'COMPLEX';
 
   const onSubmit = async (data: LeaseFormValues) => {
+    console.log('unitId no submit:', data.unitId);
     setErrorMsg(null);
     try {
       const payload = {
@@ -123,12 +125,13 @@ export default function NovoContratoPage() {
         primaryTenantId: data.primaryTenantId,
         startDate: new Date(data.startDate).toISOString(),
         endDate: new Date(data.endDate).toISOString(),
-        dueDay: data.dueDay,
-        rentAmount: parseFloat(data.rentAmount),
-        depositAmount: data.depositAmount ? parseFloat(data.depositAmount) : undefined,
+        dueDay: parseInt(data.dueDay.toString(), 10),
+        rentAmount: parseFloat(data.rentAmount.toString()),
+        depositAmount: data.depositAmount ? parseFloat(data.depositAmount.toString()) : undefined,
         adjustmentIndex: data.adjustmentIndex,
-        adjustmentFrequencyMonths: data.adjustmentFrequencyMonths,
+        adjustmentFrequencyMonths: parseInt(data.adjustmentFrequencyMonths.toString(), 10),
         guaranteeType: data.guaranteeType,
+        status: 'ACTIVE',
         notes: data.notes || undefined,
       };
 
@@ -146,6 +149,7 @@ export default function NovoContratoPage() {
       router.push('/contratos');
       router.refresh();
     } catch (err) {
+      console.error(err);
       setErrorMsg(err instanceof Error ? err.message : 'Ocorreu um erro interno.');
     }
   };
@@ -202,8 +206,14 @@ export default function NovoContratoPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Unidade <span className="text-[#E24B4A]">*</span>
                   </label>
-                  <select 
-                    {...register('unitId')} 
+                  <select
+                    value={watch('unitId') ?? ''}
+                    onChange={(e) =>
+                      setValue('unitId', e.target.value, {
+                        shouldValidate: true,
+                        shouldDirty: true,
+                      })
+                    }
                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#3B6D11] focus:border-[#3B6D11]"
                   >
                     <option value="">Selecione uma unidade</option>
@@ -214,6 +224,8 @@ export default function NovoContratoPage() {
                   {errors.unitId && <p className="text-[#E24B4A] text-xs mt-1">{errors.unitId.message}</p>}
                 </div>
               )}
+              {/* Hidden input sempre registrado — fonte única do unitId no RHF */}
+              <input type="hidden" {...register('unitId')} />
             </div>
           </section>
 
@@ -398,7 +410,6 @@ export default function NovoContratoPage() {
               ) : 'Salvar contrato'}
             </button>
           </div>
-
         </form>
       </div>
     </div>

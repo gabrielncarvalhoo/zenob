@@ -1,5 +1,16 @@
+"use client";
+
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState, useCallback } from 'react';
+
+interface PaymentResult {
+  valorPago: number;
+  totalPago: number;
+  saldoRestante: number;
+  credito: number;
+  status: string;
+}
 
 interface Receivable {
   id: string;
@@ -11,23 +22,6 @@ interface Receivable {
   penaltiesAmount: number;
   discountAmount: number;
   status: 'PENDING' | 'PAID' | 'PARTIAL' | 'OVERDUE' | 'RENEGOTIATED' | 'WAIVED';
-}
-
-async function getReceivable(id: string): Promise<Receivable | null> {
-  try {
-    const res = await fetch(`http://localhost:3000/api/v1/receivables/${id}`, {
-      cache: 'no-store',
-    });
-    if (!res.ok) {
-      if (res.status === 404) return null;
-      console.error('Failed to fetch receivable:', res.statusText);
-      return null;
-    }
-    return res.json();
-  } catch (error) {
-    console.error('Error fetching receivable:', error);
-    return null;
-  }
 }
 
 function getStatusBadge(status: Receivable['status']) {
@@ -74,34 +68,131 @@ function formatCompetency(competency: string) {
   return `${monthName}/${year}`;
 }
 
-export default async function DetalheCobrancaPage({ params }: { params: { id: string } }) {
-  const receivable = await getReceivable(params.id);
+export default function DetalheCobrancaPage({ params }: { params: { id: string } }) {
+  const router = useRouter();
+  const [receivable, setReceivable] = useState<Receivable | null>(null);
+  const [loading, setLoading] = useState(true);
+  
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [amount, setAmount] = useState('');
+  const [method, setMethod] = useState('PIX');
+  const [paymentDate, setPaymentDate] = useState('');
+  
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [paymentResult, setPaymentResult] = useState<PaymentResult | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const fetchReceivable = useCallback(async () => {
+    try {
+      const res = await fetch(`http://localhost:3000/api/v1/receivables/${params.id}`);
+      if (!res.ok) {
+        setReceivable(null);
+        setLoading(false);
+        return;
+      }
+      const data = await res.json();
+      setReceivable(data);
+      setAmount(data.balanceAmount.toString());
+      setPaymentDate(new Date().toISOString().split('T')[0]);
+      setLoading(false);
+    } catch (err) {
+      console.error(err);
+      setLoading(false);
+    }
+  }, [params.id]);
+
+  useEffect(() => {
+    fetchReceivable();
+  }, [fetchReceivable]);
+
+  const handleOpenModal = () => {
+    if (receivable) {
+      setAmount(receivable.balanceAmount.toString());
+      setPaymentDate(new Date().toISOString().split('T')[0]);
+      setMethod('PIX');
+      setPaymentResult(null);
+      setErrorMsg(null);
+      setIsModalOpen(true);
+    }
+  };
+
+  const handleSubmitPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setErrorMsg(null);
+
+    try {
+      const payload = {
+        amount: parseFloat(amount),
+        method,
+        paymentDate: new Date(paymentDate).toISOString(),
+      };
+
+      const res = await fetch(`http://localhost:3000/api/v1/receivables/${params.id}/payments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null);
+        throw new Error(errorData?.message || 'Falha ao registrar pagamento.');
+      }
+
+      const data = await res.json();
+      setPaymentResult(data.resumo);
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Ocorreu um erro interno.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    router.refresh();
+    fetchReceivable(); // Also refetch locally to ensure state updates immediately
+  };
+
+  if (loading) {
+    return <div className="container mx-auto py-8 px-4 text-center">Carregando...</div>;
+  }
 
   if (!receivable) {
-    notFound();
+    return <div className="container mx-auto py-8 px-4 text-center">Cobrança não encontrada.</div>;
   }
 
   const isBalanceGreaterThanZero = receivable.balanceAmount > 0;
+  const showPaymentButton = receivable.status !== 'PAID' && receivable.status !== 'WAIVED';
 
   return (
-    <div className="container mx-auto py-8 px-4 max-w-4xl">
+    <div className="container mx-auto py-8 px-4 max-w-4xl relative">
       <div className="mb-6">
         <Link 
           href="/cobrancas" 
           className="inline-flex items-center text-sm font-medium text-gray-500 hover:text-[#3B6D11] transition-colors"
         >
-          <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
           </svg>
           Voltar
         </Link>
       </div>
 
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Detalhes da Cobrança</h1>
-        <div>
+      <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-8 gap-4">
+        <div className="flex items-center gap-4">
+          <h1 className="text-3xl font-bold text-gray-900">Detalhes da Cobrança</h1>
           {getStatusBadge(receivable.status)}
         </div>
+        
+        {showPaymentButton && (
+          <button 
+            onClick={handleOpenModal}
+            className="bg-[#3B6D11] hover:bg-[#27500A] text-white px-4 py-2 rounded-md font-medium transition-colors"
+          >
+            Registrar pagamento
+          </button>
+        )}
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -160,6 +251,125 @@ export default async function DetalheCobrancaPage({ params }: { params: { id: st
           </div>
         </div>
       </div>
+
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+          <div className="bg-white rounded-xl shadow-lg w-full max-w-md overflow-hidden">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-gray-900">Registrar Pagamento</h2>
+              {!paymentResult && (
+                <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+              )}
+            </div>
+
+            <div className="p-6">
+              {paymentResult ? (
+                <div className="text-center py-6 space-y-4">
+                  {paymentResult.status === 'PAID' && (
+                    <div className="bg-[#EAF3DE] text-[#3B6D11] p-4 rounded-lg font-bold text-lg">
+                      Cobrança quitada!
+                    </div>
+                  )}
+                  {paymentResult.saldoRestante > 0 && (
+                    <div className="bg-[#FAEEDA] text-[#633806] p-4 rounded-lg font-bold text-lg">
+                      Pagamento parcial — {formatCurrency(paymentResult.saldoRestante)} ainda pendente
+                    </div>
+                  )}
+                  {paymentResult.credito > 0 && (
+                    <div className="bg-[#E6F1FB] text-[#0C447C] p-4 rounded-lg font-bold text-lg">
+                      Pagamento a maior — {formatCurrency(paymentResult.credito)} de crédito
+                    </div>
+                  )}
+                  <button 
+                    onClick={handleCloseModal}
+                    className="mt-6 w-full bg-gray-900 hover:bg-gray-800 text-white py-2 rounded-md font-medium transition-colors"
+                  >
+                    Fechar
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleSubmitPayment} className="space-y-4">
+                  {errorMsg && (
+                    <div className="bg-[#FCEBEB] border border-[#E24B4A] text-[#791F1F] px-4 py-3 rounded-md text-sm">
+                      {errorMsg}
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Valor pago (R$) <span className="text-[#E24B4A]">*</span>
+                    </label>
+                    <input 
+                      type="number"
+                      step="0.01"
+                      required
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#3B6D11] focus:border-[#3B6D11]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Forma de pagamento <span className="text-[#E24B4A]">*</span>
+                    </label>
+                    <select 
+                      required
+                      value={method}
+                      onChange={(e) => setMethod(e.target.value)}
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#3B6D11] focus:border-[#3B6D11]"
+                    >
+                      <option value="PIX">PIX</option>
+                      <option value="DINHEIRO">Dinheiro</option>
+                      <option value="TRANSFERENCIA">Transferência</option>
+                      <option value="BOLETO">Boleto</option>
+                      <option value="CARTAO">Cartão</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Data do pagamento <span className="text-[#E24B4A]">*</span>
+                    </label>
+                    <input 
+                      type="date"
+                      required
+                      value={paymentDate}
+                      onChange={(e) => setPaymentDate(e.target.value)}
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#3B6D11] focus:border-[#3B6D11]"
+                    />
+                  </div>
+
+                  <div className="pt-4 flex justify-end gap-3">
+                    <button 
+                      type="button"
+                      onClick={() => setIsModalOpen(false)}
+                      className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-50 transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                    <button 
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="px-4 py-2 bg-[#3B6D11] hover:bg-[#27500A] text-white rounded-md text-sm font-medium transition-colors disabled:opacity-70 flex items-center justify-center min-w-[120px]"
+                    >
+                      {isSubmitting ? (
+                        <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      ) : 'Confirmar'}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
