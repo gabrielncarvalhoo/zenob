@@ -69,18 +69,18 @@ export default async function ContratosPage() {
     <div className="container mx-auto py-8 px-4 max-w-6xl">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Contratos</h1>
-        <button className="bg-[#3B6D11] hover:bg-[#27500A] text-white px-4 py-2 rounded-md font-medium transition-colors cursor-pointer">
+        <Link href="/contratos/novo" className="bg-[#3B6D11] hover:bg-[#27500A] text-white px-4 py-2 rounded-md font-medium transition-colors cursor-pointer inline-block">
           + Novo contrato
-        </button>
+        </Link>
       </div>
 
       {leases.length === 0 ? (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
           <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum contrato encontrado</h3>
           <p className="text-gray-500 mb-6">Você ainda não possui nenhum contrato registrado.</p>
-          <button className="bg-[#3B6D11] hover:bg-[#27500A] text-white px-4 py-2 rounded-md font-medium transition-colors cursor-pointer">
+          <Link href="/contratos/novo" className="bg-[#3B6D11] hover:bg-[#27500A] text-white px-4 py-2 rounded-md font-medium transition-colors cursor-pointer inline-block">
             Registrar primeiro contrato
-          </button>
+          </Link>
         </div>
       ) : (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">

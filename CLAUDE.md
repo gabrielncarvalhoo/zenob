@@ -64,3 +64,24 @@ Base URL: http://localhost:3000/api/v1
 - Primary light bg: #EAF3DE
 - Warning: #BA7517 / bg: #FAEEDA
 - Error: #E24B4A / bg: #FCEBEB
+
+## Quando usar cada modelo de IA
+
+**Regra:** Ao final de cada resposta (ou quando a tarefa sugerir próxima ação), indicar qual modelo usar para o próximo passo.
+
+| Situação | Modelo | Ferramenta |
+|---|---|---|
+| Novos módulos NestJS, rotas CRUD, services simples, schemas Prisma, componentes Next.js, formulários, bugs gerais | MiniMax 2.7 | Claude Code |
+| Refatorações críticas, lógica de cobrança/financeiro, bugs difíceis que MiniMax não resolveu | Sonnet 4.6 | Claude Code |
+| Arquitetura muito complexa, problemas que Sonnet não resolveu | Opus 4.7 | Claude Code |
+| Componentes visuais Tailwind, layout, UI completa, shadcn/ui | Gemini 3.1 Pro | Antigravity |
+| Decisões arquiteturais, debug difícil, análise de trade-offs | Claude.ai | — |
+| Protótipos, design system, wireframes | Claude Design | — |
+| Documentação, changelogs, organização de arquivos | Claude Cowork | — |
+
+**Regra:** Preferir MiniMax sempre que possível — escalar para Sonnet/Opus só quando a complexidade exigir.
+
+**Exemplos de indicação ao final da resposta:**
+- "Próximo passo → **MiniMax 2.7** no Claude Code"
+- "Lógica de pagamento parcial → **Sonnet 4.6** no Claude Code"
+- "Novo componente visual → **Gemini 3.1 Pro** no Antigravity"
