@@ -405,6 +405,7 @@ model Receivable {
   overdueDays     Int              @default(0)
   lateFeeApplied  Boolean          @default(false)
   interestApplied Boolean          @default(false)
+  paidAt          DateTime?
   notes           String?
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
