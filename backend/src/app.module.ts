@@ -11,6 +11,7 @@ import { MaintenanceModule } from './modules/maintenance/maintenance.module';
 import { ReconciliationModule } from './modules/reconciliation/reconciliation.module';
 import { TemplatesModule } from './modules/templates/templates.module';
 import { RenewalsModule } from './modules/renewals/renewals.module';
+import { IptuModule } from './modules/iptu/iptu.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { RenewalsModule } from './modules/renewals/renewals.module';
     ReconciliationModule,
     TemplatesModule,
     RenewalsModule,
+    IptuModule,
   ],
 })
 export class AppModule {}

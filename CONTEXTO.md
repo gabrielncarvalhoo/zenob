@@ -48,16 +48,23 @@ zenob/
 │           ├── tenants/     ✅
 │           ├── leasing/     ✅
 │           ├── billing/     ✅
-│           └── expenses/    ✅
+│           ├── expenses/    ✅
+│           ├── notifications/ ✅
+│           ├── maintenance/  ✅
+│           ├── reconciliation/ ✅
+│           ├── templates/    ✅
+│           ├── renewals/     ✅
+│           └── iptu/         ✅
 └── zenob-web/        ← Next.js frontend (porta 3000/3001)
     └── src/
         ├── app/
         │   ├── dashboard/    ✅
-        │   ├── imoveis/      ✅ + novo/editar
+        │   ├── imoveis/      ✅ + novo/editar/iptu
         │   ├── inquilinos/   ✅ + novo
-        │   ├── contratos/    ✅ + novo/[id]
+        │   ├── contratos/    ✅ + novo/[id]/renovar
         │   ├── cobrancas/    ✅ + [id]
-        │   └── despesas/     ✅ + novo/[id]
+        │   ├── despesas/     ✅ + novo/[id]
+        │   └── manutencao/   ✅
         └── components/layout/ ✅
 
 ## API — Base URL
@@ -67,6 +74,10 @@ zenob/
 
 **Dashboard**
 GET             /dashboard                          KPIs do mês atual
+GET             /dashboard/historical                Histórico 12 meses
+GET             /dashboard/occupancy-history         Ocupação mensal
+GET             /dashboard/receivables-by-status     Distribuição por status
+GET             /dashboard/expenses-by-category     Despesas por categoria
 
 **Portfolio (Properties/Imóveis)**
 GET             /properties                         Lista imóveis + unidades
@@ -90,6 +101,8 @@ PATCH           /leases/:id/status                  Atualizar status (ativa/desa
 POST           /leases/:id/terminate                Encerrar contrato (TERMINATED)
 POST           /leases/:id/cancel                   Cancelar contrato (CANCELLED)
 PATCH          /leases/:id/rent-amount              Ajustar valor do aluguel
+POST           /leases/:id/renew                    Renovar contrato (encerra + cria novo)
+GET            /leases/:id/contract/pdf            Gerar PDF do contrato
 
 **Billing (Cobranças/Pagamentos)**
 GET             /receivables                        Lista cobranças (filtros: leaseId, tenantId, limit)
@@ -106,6 +119,25 @@ PATCH           /expenses/:id                       Atualizar despesa
 PATCH           /expenses/:id/pay                   Marcar como paga
 DELETE          /expenses/:id                       Excluir despesa
 
+**Notifications**
+GET             /notifications                      Lista notificações
+PATCH           /notifications/:id/read             Marcar como lida
+
+**IPTU**
+GET             /iptu/properties                    Lista status IPTU de todos imóveis
+GET             /iptu/dashboard                     Resumo para dashboard
+POST            /iptu/batch-check                   Verificar todos no site da Prefeitura
+POST            /iptu/confirm/:propertyId           Confirmar pagamento manualmente
+
+**Renewals**
+GET             /renewals/upcoming                  Renovações próximas (próximos 60 dias)
+
+**Templates**
+GET             /templates                           Lista templates
+GET             /templates/:id                       Detalhe template
+POST            /templates                           Criar template
+PATCH           /templates/:id                       Atualizar template
+
 ## Módulos backend — detalhes
 
 ### leasing
@@ -115,6 +147,7 @@ DELETE          /expenses/:id                       Excluir despesa
 * Status: DRAFT | ACTIVE | EXPIRED | TERMINATED | CANCELLED
 * **Ajuste de aluguel** (`PATCH /leases/:id/rent-amount`) — atualiza `rentAmount` sem afectar cobranças existentes
 * **Cancelar contrato** (`POST /leases/:id/cancel`) — marca como CANCELLED
+* **Renovar contrato** (`POST /leases/:id/renew`) — encerra atual + cria novo
 
 ### billing
 * `registerPayment` distribui pagamento automaticamente: primeiro overdue, depois current, depois future
@@ -129,13 +162,36 @@ DELETE          /expenses/:id                       Excluir despesa
 
 ### dashboard
 * KPIs: a receber, recebido, inadimplência (R$), ocupação (%), despesas do mês, contratos ativos
+* Histórico de 12 meses (recebido, despesas, atrasado)
+* Evolução de ocupação mensal
+
+### iptu
+* Scraping do site da Prefeitura de Campina Grande (https://campinagrande.pb.gov.br/iptu/)
+* Verifica mensagem "Nenhum débito pendente encontrado" para determinar se IPTU está pago
+* Status: PAID | PENDING | NOT_FOUND | UNKNOWN
+* Agenda: Jan-Jun a cada 10 dias, Jul-Dec mensal, Jan 10 reset
+* Confirmação manual de pagamento
+* Campos em Property: iptuStatus, iptuLastChecked, iptuDueDate
+
+### renewals
+* Agenda lembretes de renovação (30, 20, 10, 5, 2, 1 dia antes e 10 depois)
+* Alertas no dashboard para contratos vencendo em até 60 dias
+
+### templates
+* Modelos de contrato com templateUrl (link para template customizado)
+* Suporte a templates personalizados na geração de PDF
+
+### reconciliation
+* Conciliação de pagamentos — vincula pagamentos automáticos a cobranças
+* Identifica diferenças de valor, antecipa crédito, detecta pagamentos não-identificados
 
 ## Frontend — Telas existentes
 
 | Rota | Descrição |
 |------|-----------|
-| `/dashboard` | KPIs do mês (cards: a receber, recebido, inadimplência, ocupação, despesas, contratos) |
+| `/dashboard` | KPIs do mês (cards: a receber, recebido, inadimplência, ocupação, despesas, contratos) + gráficos + alertas de renovação |
 | `/imoveis` | Grid de imóveis com ícones por tipo e badges de vacância |
+| `/imoveis/iptu` | Status IPTU de todos imóveis + verificar todos + confirmar manualmente |
 | `/imoveis/novo` | Formulário com CEP automático, multi-unidade para COMPLEX |
 | `/imoveis/[id]` | Detalhe do imóvel com tabela de unidades e leases ativos |
 | `/imoveis/[id]/editar` | Editar imóvel |
@@ -145,11 +201,13 @@ DELETE          /expenses/:id                       Excluir despesa
 | `/contratos` | Lista de contratos com filtros (status) e busca |
 | `/contratos/novo` | Formulário com selects em cascata (imóvel → unidades → inquilino) |
 | `/contratos/[id]` | Detalhe: imóvel, inquilino, condições, garantías, ações |
+| `/contratos/[id]/renovar` | Renovar contrato com nova vigência e valor |
 | `/cobrancas` | Lista de cobranças com abas (todas/pendentes/atrasadas/pagas/parcial) |
 | `/cobrancas/[id]` | Detalhe da cobrança com modal de pagamento |
 | `/despesas` | Lista de despesas com abas (todas/a pagar/pagas) |
 | `/despesas/novo` | Formulário com categoria, valor, data, propriedade |
 | `/despesas/[id]` | Detalhe da despesa |
+| `/manutencao` | Solicitações de manutenção |
 
 ## Funcionalidades implementadas
 
@@ -174,30 +232,38 @@ DELETE          /expenses/:id                       Excluir despesa
 - Unidade auto-criada ao cadastrar imóvel (exceto tipo COMPLEX)
 - Campos obrigatórios: IPTU, água, energia (obrigatórios — link https://campinagrande.pb.gov.br/iptu/)
 - CEP automático (ViaCEP)
+- Status IPTU por imóvel com verificação automática
+
+### IPTU
+- Verificação automática via scraping do site da Prefeitura
+- Status: Pago, Pendente, Não encontrado, Desconhecido
+- Reset anual em 10 de Janeiro
+- Agenda: Jan-Jun a cada 10 dias, Jul-Dec mensal
+- Confirmação manual de pagamento
+- Botão na página do imóvel para abrir site da Prefeitura
 
 ### Inquilinos
 - CRUD completo
 - Campos: fullName, CPF, RG, birthDate, email, phone, employer, monthlyIncome
 
-## Pendente no backlog
+## Backlog
 
 ### Alto valor (próximos)
 - Autenticação com Clerk (conta multi-usuário, login real)
 - Geração de PDF (recibo de pagamento, contrato)
 - Upload de modelo de contrato personalizado
 - Filtros e busca na listagem de imóveis
-- Tela de manutenção (tickets)
 - Notificações via e-mail/WhatsApp
+- Upload de contratos e documentos
 
 ### Médio valor
-- Sistema de pastas para agrupar imóveis
 - Editar/confirmar pagamento em `/cobrancas/[id]`
 - Renovação automática de contrato (em vez de manual)
-- Dashboard com gráficos históricos
 - Relatório de inadimplência
+- Importação de transações bancárias
 
 ### Baixo valor / futuro
-- Importação de transações bancárias e conciliação automática
+- Sistema de pastas para agrupar imóveis
 - Planos (FREE/STARTER/PRO) com limites de imóveis
 - Backup automático do banco
 - Deploy para produção (Supabase como DB)
@@ -211,3 +277,4 @@ DELETE          /expenses/:id                       Excluir despesa
 * **Um imóvel pode ter múltiplos inquilinos** via `lease_tenants` (N:N)
 * **Um inquilino pode ter múltiplos imóveis** via `lease_tenants` (N:N)
 * **Data handling UTC puro** — evita bugs de DST
+* **IPTU scraping** — simples verificação de mensagem, nãovalidação de números

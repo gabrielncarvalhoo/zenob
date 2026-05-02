@@ -158,8 +158,10 @@ export function ReceivablesList({ leaseId }: ReceivablesListProps) {
               return due.getUTCFullYear() === cursorYear && due.getUTCMonth() === cursorMonth;
             });
             if (nextRec) {
+              // Mostrar tudo até o mês encontrado (inclusive)
               showMonths = data.filter(r => {
                 const due = new Date(r.dueDate).getTime();
+                // Include PAID only up to cursor month; include unpaid at cursor
                 if (r.status === 'PAID') return due <= cursorStart;
                 return due <= cursorStart;
               });
@@ -168,7 +170,7 @@ export function ReceivablesList({ leaseId }: ReceivablesListProps) {
             // Este mês está pago - avança para o próximo
             cursorMonth++;
             if (cursorMonth > 11) { cursorMonth = 0; cursorYear++; }
-            // Limite: 24 meses no futuro
+            // Limite: 24 meses no futuro (month start)
             const limitStart = new Date(Date.UTC(currentYear, currentMonth + 24, 1)).getTime();
             if (cursorStart > limitStart) break;
           }
@@ -265,7 +267,7 @@ export function ReceivablesList({ leaseId }: ReceivablesListProps) {
               <th className="px-4 py-4 w-[12%] truncate">Pago em</th>
               <th className="px-4 py-4 w-[12%] truncate">Saldo</th>
               <th className="px-4 py-4 w-[12%] truncate">Status</th>
-              <th className="px-8 py-4 w-[12%] text-right truncate">Ações</th>
+              <th className="px-8 py-4 w-[14%] text-right">Ações</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">

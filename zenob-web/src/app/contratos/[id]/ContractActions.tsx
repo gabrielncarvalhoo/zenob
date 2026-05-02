@@ -195,7 +195,7 @@ export function ContractActions({ leaseId, status, daysUntilEnd, leaseData }: Co
             {error}
           </div>
         )}
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap gap-3 items-center">
           {status === 'DRAFT' && (
             <button
               disabled={loading}

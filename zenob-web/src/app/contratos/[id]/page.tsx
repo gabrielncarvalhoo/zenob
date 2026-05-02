@@ -165,13 +165,22 @@ export default async function DetalheContratoPage({ params }: { params: { id: st
   const daysUntilEnd = getDaysUntil(lease.endDate);
   const needsRenewalAlert = daysUntilEnd >= 0 && daysUntilEnd <= 60 && lease.status === 'ACTIVE';
 
-  // KPIs do contrato
+  // KPIs do contrato — aplicar lógica correta de exibição
+  const now = new Date();
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const hasOverdue = receivables.some(r => r.status === 'OVERDUE');
+
+  // Se tem atrasado, pegar todos até mês atual. Senão, pegar do primeiro não-pago adiante.
+  const shownReceivables = hasOverdue
+    ? receivables.filter(r => {
+        const m = r.dueDate.slice(0, 7);
+        return m <= currentMonth && ['PENDING', 'PARTIAL', 'OVERDUE'].includes(r.status);
+      })
+    : receivables.filter(r => ['PENDING', 'PARTIAL', 'OVERDUE'].includes(r.status)).slice(0, 3);
+
   const totalPago = receivables.reduce((acc, r) => acc + Number(r.paidAmount), 0);
-  const saldoAberto = receivables
-    .filter((r) => ['PENDING', 'PARTIAL', 'OVERDUE'].includes(r.status))
-    .reduce((acc, r) => acc + Number(r.balanceAmount), 0);
-  const proximoVenc = receivables
-    .filter((r) => ['PENDING', 'PARTIAL', 'OVERDUE'].includes(r.status))
+  const saldoAberto = shownReceivables.reduce((acc, r) => acc + Number(r.balanceAmount), 0);
+  const proximoVenc = shownReceivables
     .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())[0];
 
   return (

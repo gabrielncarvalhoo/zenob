@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { ExternalLink, CheckCircle2, AlertTriangle } from 'lucide-react';
 
 interface Property {
   id: string;
@@ -149,6 +150,10 @@ export default async function ImoveisDetalhePage({ params }: { params: { id: str
           <Link href={`/imoveis/${property.id}/editar`} className="bg-[#3B6D11] hover:bg-[#27500A] text-white px-4 py-2 rounded-md font-medium transition-colors inline-block">
             Editar imóvel
           </Link>
+          <Link href="/imoveis/iptu" className="flex items-center gap-2 border border-gray-300 hover:border-[#3B6D11] text-gray-700 px-4 py-2 rounded-md font-medium transition-colors">
+            <ExternalLink className="w-4 h-4" />
+            Verificar IPTU
+          </Link>
         </div>
       </div>
 
@@ -189,7 +194,15 @@ export default async function ImoveisDetalhePage({ params }: { params: { id: str
                     <tr key={unit.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 font-medium text-gray-900">{unit.code}</td>
                       <td className="px-6 py-4 text-xs text-gray-500">
-                        {unit.iptuCode && <div>IPTU: {unit.iptuCode}</div>}
+                        {unit.iptuCode && (
+                          <div className="flex items-center gap-1">
+                            <span>IPTU: {unit.iptuCode}</span>
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] bg-[#EAF3DE] text-[#3B6D11]">
+                              <CheckCircle2 className="w-2.5 h-2.5" />
+                              OK
+                            </span>
+                          </div>
+                        )}
                         {unit.waterRegistration && <div>Água: {unit.waterRegistration}</div>}
                         {unit.energyRegistration && <div>Energia: {unit.energyRegistration}</div>}
                       </td>
