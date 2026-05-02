@@ -9,6 +9,7 @@ import { AccountsModule } from './modules/accounts/accounts.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { MaintenanceModule } from './modules/maintenance/maintenance.module';
 import { ReconciliationModule } from './modules/reconciliation/reconciliation.module';
+import { TemplatesModule } from './modules/templates/templates.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { ReconciliationModule } from './modules/reconciliation/reconciliation.mo
     NotificationsModule,
     MaintenanceModule,
     ReconciliationModule,
+    TemplatesModule,
   ],
 })
 export class AppModule {}

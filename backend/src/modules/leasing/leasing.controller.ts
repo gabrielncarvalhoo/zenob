@@ -49,8 +49,21 @@ export class LeasingController {
   }
 
   @Get(':id/contract/pdf')
-  async getContractPdf(@Param('id') id: string, @Res() res: any) {
-    const pdfBuffer = await this.contractPdfService.generateContractPdf(id);
+  async getContractPdf(
+    @Param('id') id: string,
+    @Query('templateId') templateId: string,
+    @Res() res: any,
+  ) {
+    let pdfBuffer: Buffer;
+    if (templateId) {
+      // Busca template da account
+      const { TemplatesService } = await import('../templates/templates.service');
+      const templatesService = new TemplatesService();
+      const template = await templatesService.findOne(templateId, 'account-teste-001');
+      pdfBuffer = await this.contractPdfService.generateFromTemplate(id, template.templateUrl);
+    } else {
+      pdfBuffer = await this.contractPdfService.generateContractPdf(id);
+    }
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="contrato-${id.slice(0, 8)}.pdf"`,

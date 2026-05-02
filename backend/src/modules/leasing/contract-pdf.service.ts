@@ -1,56 +1,177 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { chromium } from 'playwright';
+import { PDFDocument } from 'pdf-lib';
 
 const prisma = new PrismaClient();
 
+// Placeholder keys → getter functions
 interface ContractData {
-  contractNumber: string;
-  propertyName: string;
-  propertyAddress: string;
-  iptuCode: string;
-  waterRegistration: string;
-  energyRegistration: string;
-  unitIdentifier: string;
-  tenantName: string;
-  tenantCpf: string;
-  tenantRg: string;
-  tenantBirthDate: string;
-  tenantEmail: string;
-  tenantPhone: string;
-  landlordName: string;
-  landlordCpf: string;
-  startDate: string;
-  endDate: string;
-  rentAmount: number;
-  depositAmount: number;
-  dueDay: number;
-  guaranteeType: string;
-  guaranteeDescription: string;
-  adjustmentIndex: string;
-  adjustmentFrequency: number;
-  lateFeeType: string;
-  lateFeeValue: number;
-  interestType: string;
-  interestValue: number;
-  status: string;
+  NOME_INQUILINO: string;
+  CPF_INQUILINO: string;
+  RG_INQUILINO: string;
+  EMAIL_INQUILINO: string;
+  TELEFONE_INQUILINO: string;
+  NOME_FIADOR: string;
+  CPF_FIADOR: string;
+  ENDERECO_IMOVEL: string;
+  NOME_IMOVEL: string;
+  CODIGO_UNIDADE: string;
+  IPTU: string;
+  MATRICULA_AGUA: string;
+  MATRICULA_ENERGIA: string;
+  VALOR_ALUGUEL: string;
+  DIA_VENCIMENTO: string;
+  DATA_INICIO: string;
+  DATA_FIM: string;
+  DURACAO_CONTRATO: string;
+  NOME_LOCADOR: string;
+  CPF_LOCADOR: string;
+  VALOR_GARANTIA: string;
+  TIPO_GARANTIA: string;
+  INDICE_REAJUSTE: string;
 }
 
 @Injectable()
 export class ContractPdfService {
+  // Gerar PDF usando template externo (URL)
+  async generateFromTemplate(leaseId: string, templateUrl: string): Promise<Buffer> {
+    const contractData = await this.buildContractData(leaseId);
+
+    // Baixa template de URL
+    let templateBuffer: Buffer;
+    try {
+      const res = await fetch(templateUrl);
+      if (!res.ok) throw new Error(`Failed to fetch template: ${res.status}`);
+      const arrayBuffer = await res.arrayBuffer();
+      templateBuffer = Buffer.from(arrayBuffer);
+    } catch {
+      // Fallback: usa template interno se URL falhar
+      return this.generateInternalTemplate(leaseId);
+    }
+
+    // Substitui placeholders no PDF
+    const pdfDoc = await PDFDocument.load(templateBuffer);
+    const pages = pdfDoc.getPages();
+    const font = await pdfDoc.embedFont('Helvetica');
+
+    for (const page of pages) {
+      const { height } = page.getSize();
+      const textLines = page.getTextContent();
+
+      // Para cada texto no PDF, tenta substituir placeholders
+      for (const line of textLines) {
+        const text = line.text;
+        const replaced = this.replacePlaceholders(text, contractData);
+        if (replaced !== text) {
+          // Substitui o texto na posição original
+          page.drawText(replaced, {
+            x: line.transform[4],
+            y: height - line.transform[5],
+            font,
+            size: 10,
+          });
+        }
+      }
+    }
+
+    const pdfBytes = await pdfDoc.save();
+    return Buffer.from(pdfBytes);
+  }
+
+  // Gerar PDF com template HTML interno (fallback)
   async generateContractPdf(leaseId: string): Promise<Buffer> {
+    const contractData = await this.buildContractData(leaseId);
+    return this.generateInternalTemplate(leaseId);
+  }
+
+  private async buildContractData(leaseId: string): Promise<ContractData> {
     const lease = await prisma.leaseContract.findUnique({
       where: { id: leaseId },
       include: {
-        unit: {
-          include: {
-            property: true,
-          },
-        },
+        unit: { include: { property: true } },
         leaseTenants: {
-          include: {
-            tenant: true,
-          },
+          include: { tenant: true },
+          where: { role: 'PRIMARY' },
+        },
+      },
+    });
+
+    if (!lease) {
+      throw new Error('Contrato não encontrado');
+    }
+
+    const primaryTenant = lease.leaseTenants[0]?.tenant;
+    const property = lease.unit.property;
+
+    const formatDate = (d: Date) =>
+      new Date(d).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+
+    const formatCurrency = (v: number) =>
+      v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+    const calcDuration = (s: Date, e: Date) => {
+      const months = Math.round((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24 * 30));
+      if (months >= 12) {
+        const years = Math.floor(months / 12);
+        const remaining = months % 12;
+        return remaining > 0 ? `${years} ano(s) e ${remaining} mês(es)` : `${years} ano(s)`;
+      }
+      return `${months} mês(es)`;
+    };
+
+    const getGuaranteeDescription = (type: string) => {
+      switch (type) {
+        case 'DEPOSIT': return 'Depósito de garantia';
+        case 'SURETY': return 'Fiador';
+        case 'INSURANCE': return 'Seguro fiança';
+        default: return 'Sem garantia';
+      }
+    };
+
+    return {
+      NOME_INQUILINO: primaryTenant?.fullName ?? 'N/A',
+      CPF_INQUILINO: primaryTenant?.cpf ?? 'N/A',
+      RG_INQUILINO: primaryTenant?.rg ?? 'N/A',
+      EMAIL_INQUILINO: primaryTenant?.email ?? 'N/A',
+      TELEFONE_INQUILINO: primaryTenant?.phone ?? 'N/A',
+      NOME_FIADOR: 'N/A', // TODO: buscar fiador se existir
+      CPF_FIADOR: 'N/A',
+      ENDERECO_IMOVEL: property.address,
+      NOME_IMOVEL: property.name,
+      CODIGO_UNIDADE: lease.unit.code,
+      IPTU: property.iptuCode ?? 'N/A',
+      MATRICULA_AGUA: property.waterRegistration ?? 'N/A',
+      MATRICULA_ENERGIA: property.energyRegistration ?? 'N/A',
+      VALOR_ALUGUEL: formatCurrency(Number(lease.rentAmount.toString())),
+      DIA_VENCIMENTO: String(lease.dueDay),
+      DATA_INICIO: formatDate(lease.startDate),
+      DATA_FIM: formatDate(lease.endDate),
+      DURACAO_CONTRATO: calcDuration(lease.startDate, lease.endDate),
+      NOME_LOCADOR: 'Proprietário',
+      CPF_LOCADOR: 'N/A',
+      VALOR_GARANTIA: formatCurrency(Number(lease.depositAmount?.toString() ?? 0)),
+      TIPO_GARANTIA: getGuaranteeDescription(lease.guaranteeType),
+      INDICE_REAJUSTE: lease.adjustmentIndex,
+    };
+  }
+
+  private replacePlaceholders(text: string, data: ContractData): string {
+    let result = text;
+    for (const [key, value] of Object.entries(data)) {
+      result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), value);
+    }
+    return result;
+  }
+
+  private async generateInternalTemplate(leaseId: string): Promise<Buffer> {
+    const lease = await prisma.leaseContract.findUnique({
+      where: { id: leaseId },
+      include: {
+        unit: { include: { property: true } },
+        leaseTenants: {
+          include: { tenant: true },
+          where: { role: 'PRIMARY' },
         },
       },
     });
@@ -65,21 +186,34 @@ export class ContractPdfService {
     const formatDate = (d: Date) =>
       new Date(d).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
 
-    const contractData: ContractData = {
+    const formatCurrency = (v: number) =>
+      v.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+
+    const calcDuration = (s: Date, e: Date) => {
+      const months = Math.round((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24 * 30));
+      if (months >= 12) {
+        const years = Math.floor(months / 12);
+        const remaining = months % 12;
+        return remaining > 0 ? `${years} ano(s) e ${remaining} mês(es)` : `${years} ano(s)`;
+      }
+      return `${months} mês(es)`;
+    };
+
+    const contractData = {
       contractNumber: `CTR-${lease.id.slice(0, 8).toUpperCase()}`,
       propertyName: property.name,
       propertyAddress: property.address,
       iptuCode: property.iptuCode ?? '-',
       waterRegistration: property.waterRegistration ?? '-',
       energyRegistration: property.energyRegistration ?? '-',
-      unitIdentifier: lease.unit.identifier,
+      unitIdentifier: lease.unit.code,
       tenantName: tenant?.fullName ?? 'N/A',
       tenantCpf: tenant?.cpf ?? 'N/A',
       tenantRg: tenant?.rg ?? 'N/A',
       tenantBirthDate: tenant?.birthDate ? formatDate(new Date(tenant.birthDate)) : 'N/A',
       tenantEmail: tenant?.email ?? 'N/A',
       tenantPhone: tenant?.phone ?? 'N/A',
-      landlordName: 'Proprietário Zenob',
+      landlordName: 'Proprietário',
       landlordCpf: 'N/A',
       startDate: formatDate(lease.startDate),
       endDate: formatDate(lease.endDate),
@@ -122,7 +256,7 @@ export class ContractPdfService {
     }
   }
 
-  private buildContractHtml(data: ContractData): string {
+  private buildContractHtml(data: any): string {
     const formatCurrency = (v: number) =>
       v.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
 
@@ -156,7 +290,7 @@ export class ContractPdfService {
     .section-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: #3B6D11; border-bottom: 1px solid #3B6D11; padding-bottom: 3px; margin-bottom: 8px; font-family: Arial, sans-serif; }
     .section p { margin-bottom: 6px; text-align: justify; }
     .data-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
-    .data-table td { padding: 3px 6px; vertical-align: top; }
+    .data-table td { padding: 3px 6px; vertical-text: top; }
     .data-table td:first-child { font-weight: bold; width: 35%; color: #555; }
     .signatures { margin-top: 40px; page-break-inside: avoid; }
     .signatures-title { text-align: center; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: #666; margin-bottom: 20px; border-top: 1px solid #ccc; padding-top: 12px; }
@@ -170,7 +304,7 @@ export class ContractPdfService {
   <div class="page">
     <div class="header">
       <h1>ZENOB</h1>
-      <p> Sistema de Administração de Aluguéis — Contrato de Locação</p>
+      <p>Sistema de Administração de Aluguéis — Contrato de Locação</p>
     </div>
 
     <div class="contract-title">CONTRATO DE LOCAÇÃO Nº ${data.contractNumber}</div>
@@ -206,7 +340,7 @@ export class ContractPdfService {
         <tr><td>Valor do aluguel</td><td>R$ ${formatCurrency(data.rentAmount)}</td></tr>
         <tr><td>Dia do vencimento</td><td>Dia ${data.dueDay} de cada mês</td></tr>
         <tr><td>Depósito de garantia</td><td>R$ ${formatCurrency(data.depositAmount)}</td></tr>
-        ${data.adjustmentIndex !== 'NONE' ? `<tr><td>Índice de reajuste</td><td>${data.adjustmentIndex} — a cada ${data.adjustmentFrequency} mês(es)</td></tr>` : ''}
+        ${data.adjustmentIndex !== 'NONE' ? `<tr><td>Índice de reajuste</td><td>${data.adjustmentIndex} — a cada ${data.adjustmentFrequency}x ao ano</td></tr>` : ''}
       </table>
       ${adjustmentClause}
     </div>
@@ -229,7 +363,7 @@ export class ContractPdfService {
 
     <div class="section">
       <div class="section-title">8. DA RESCISÃO</div>
-      <p style="margin-bottom: 8px;">O inadimplemento de qualquer cláusula por parte do LOCATÁRIO authorizes o LOCADOR a rescindir o contrato de imediato, sem prejuízo da cobrança de valores vencidos e multa contratual.</p>
+      <p style="margin-bottom: 8px;">O inadimplemento de qualquer cláusula por parte do LOCATÁRIO autoriza o LOCADOR a rescindir o contrato de imediato, sem prejuízo da cobrança de valores vencidos e multa contratual.</p>
       <p>O LOCATÁRIO poderá resiliar o contrato mediante aviso prévio de 30 dias e pagamento de multa equivalente a um mês de aluguel.</p>
     </div>
 
