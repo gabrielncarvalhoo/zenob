@@ -236,6 +236,9 @@ model Property {
   state           String
   zipCode            String
   iptuCode           String?   // inscrição imobiliária IPTU
+  iptuStatus         String?   @default("UNKNOWN") // PAID | PENDING | NOT_FOUND | UNKNOWN
+  iptuLastChecked    DateTime?
+  iptuDueDate        DateTime?
   waterRegistration  String?   // matrícula de água (Cagepa)
   energyRegistration String?   // matrícula de energia (Energisa)
   deedNumber         String?   // número da escritura

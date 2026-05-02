@@ -14,15 +14,22 @@ interface ScrapeResult {
 @Injectable()
 export class IptuService {
   // Check IPTU status via web scraping
+  // URL real: https://ecidadeonline.campinagrande.pb.gov.br/digitamatricula.php?inscricao=CODIGO
+  // Mensagem de "sem débitos": "Nenhum débito pendente encontrado para a matrícula X"
   async checkIptuStatus(iptuCode: string): Promise<ScrapeResult> {
-    const checkUrl = `https://campinagrande.pb.gov.br/iptu/`;
+    if (!iptuCode || iptuCode.trim() === '') {
+      return { status: 'NOT_FOUND', rawMessage: 'Código IPTU não informado', checkedAt: new Date() };
+    }
+
+    const checkUrl = `https://ecidadeonline.campinagrande.pb.gov.br/digitamatricula.php?inscricao=${encodeURIComponent(iptuCode.trim())}`;
 
     try {
-      // Fetch the page
       const response = await fetch(checkUrl, {
         method: 'GET',
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'text/html,application/xhtml+xml',
+          'Accept-Language': 'pt-BR,pt;q=0.9',
         },
       });
 
@@ -32,16 +39,22 @@ export class IptuService {
 
       const html = await response.text();
 
-      // Check for paid message (sem débitos)
-      if (html.includes('Nenhum débito pendente encontrado')) {
+      // Mensagem exata de quando IPTU está pago (sem débitos)
+      // Formato: "Nenhum débito pendente encontrado para a matrícula X"
+      if (html.includes('Nenhum débito pendente encontrado') ||
+          html.includes('Nenhum débito pendente encontrado')) {
         return { status: 'PAID', rawMessage: 'Nenhum débito pendente encontrado', checkedAt: new Date() };
       }
 
-      // Check for pending debts (débito)
-      if (html.includes('débito') || html.includes('valor')) {
-        return { status: 'PENDING', rawMessage: 'Débito encontrado', checkedAt: new Date() };
+      // Procurar indicators de débitos pendentes
+      // A página mostra "Parcelas do exercício Y já disponíveis" quando há parcelas
+      // Também pode ter elementos com valor total > 0
+      if ((html.includes('Parcelas do exerc') || html.includes('débito') || html.includes('débito')) &&
+          (html.includes('valor') || html.includes('R$'))) {
+        return { status: 'PENDING', rawMessage: 'Débito encontrado (parcelas pendentes)', checkedAt: new Date() };
       }
 
+      // Se carregou mas não encontrou mensagem clara
       return { status: 'UNKNOWN', rawMessage: 'Página carregada mas mensagem não reconhecida', checkedAt: new Date() };
     } catch (error) {
       return { status: 'UNKNOWN', rawMessage: `Erro: ${error}`, checkedAt: new Date() };

@@ -16,6 +16,7 @@ import {
   Settings,
   ChevronDown,
   Leaf,
+  Landmark,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -42,6 +43,7 @@ const gruposNavegacao = [
     itens: [
       { href: '/manutencao', icone: Wrench, label: 'Manutenção' },
       { href: '/notificacoes', icone: Bell, label: 'Notificações' },
+      { href: '/imoveis/iptu', icone: Landmark, label: 'IPTU' },
     ],
   },
 ];
