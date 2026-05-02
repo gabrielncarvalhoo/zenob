@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import {
   LayoutDashboard,
   Building2,
@@ -47,9 +48,41 @@ const gruposNavegacao = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+
+  // Toggle via evento global disparado pelo Topbar
+  useEffect(() => {
+    const onToggle = () => setOpen((v) => !v);
+    const onClose = () => setOpen(false);
+    window.addEventListener('sidebar:toggle', onToggle);
+    window.addEventListener('sidebar:close', onClose);
+    return () => {
+      window.removeEventListener('sidebar:toggle', onToggle);
+      window.removeEventListener('sidebar:close', onClose);
+    };
+  }, []);
+
+  // Fecha drawer ao trocar de rota em mobile
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
 
   return (
-    <aside className="flex flex-col w-60 h-screen bg-white border-r border-gray-200 fixed left-0 top-0 z-40">
+    <>
+      {open && (
+        <div
+          className="md:hidden fixed inset-0 z-30 bg-black/40"
+          onClick={() => setOpen(false)}
+          aria-hidden
+        />
+      )}
+    <aside
+      className={cn(
+        'flex flex-col w-60 h-screen bg-white border-r border-gray-200 fixed left-0 top-0 z-40 transition-transform duration-200',
+        'md:translate-x-0',
+        open ? 'translate-x-0' : '-translate-x-full',
+      )}
+    >
       {/* Logo */}
       <div className="flex items-center gap-2 px-5 py-5 border-b border-gray-100">
         <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#3B6D11]">
@@ -126,5 +159,6 @@ export function Sidebar() {
         </Link>
       </div>
     </aside>
+    </>
   );
 }

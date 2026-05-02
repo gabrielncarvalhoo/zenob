@@ -32,7 +32,9 @@ interface Property {
 
 interface Unit {
   id: string;
-  identifier: string;
+  identifier?: string;
+  code?: string;
+  occupied?: boolean;
 }
 
 interface Tenant {
@@ -47,6 +49,7 @@ export default function NovoContratoPage() {
   const [properties, setProperties] = useState<Property[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
   const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [allOccupied, setAllOccupied] = useState(false);
 
   const {
     register,
@@ -67,16 +70,40 @@ export default function NovoContratoPage() {
   const selectedPropertyId = watch('propertyId');
 
   useEffect(() => {
-    // Fetch properties and tenants on mount
+    // Carrega properties+tenants+leases ACTIVE em paralelo, depois filtra imóveis
+    // sem nenhuma unidade livre
     const fetchData = async () => {
       try {
-        const [propsRes, tenantsRes] = await Promise.all([
-          fetch('http://localhost:3000/api/v1/properties'),
-          fetch('http://localhost:3000/api/v1/tenants')
+        const headers = { 'x-account-id': 'account-teste-001' };
+        const [propsRes, tenantsRes, leasesRes] = await Promise.all([
+          fetch('http://localhost:3000/api/v1/properties', { headers }),
+          fetch('http://localhost:3000/api/v1/tenants', { headers }),
+          fetch('http://localhost:3000/api/v1/leases?status=ACTIVE', { headers }),
         ]);
-        
-        if (propsRes.ok) setProperties(await propsRes.json());
-        if (tenantsRes.ok) setTenants(await tenantsRes.json());
+
+        const allProps: Property[] = propsRes.ok ? await propsRes.json() : [];
+        const tenantsList = tenantsRes.ok ? await tenantsRes.json() : [];
+        const activeLeases: Array<{ unitId: string }> = leasesRes.ok ? await leasesRes.json() : [];
+        const occupiedUnits = new Set(activeLeases.map((l) => l.unitId));
+
+        // Para cada property, verifica se há ao menos uma unidade livre
+        const propsComUnitsLivres = await Promise.all(
+          allProps.map(async (p) => {
+            try {
+              const r = await fetch(`http://localhost:3000/api/v1/properties/${p.id}/units`, { headers });
+              if (!r.ok) return { property: p, hasFree: false };
+              const units: Array<{ id: string }> = await r.json();
+              if (units.length === 0) return { property: p, hasFree: false };
+              const hasFree = units.some((u) => !occupiedUnits.has(u.id));
+              return { property: p, hasFree };
+            } catch {
+              return { property: p, hasFree: false };
+            }
+          }),
+        );
+
+        setProperties(propsComUnitsLivres.filter((x) => x.hasFree).map((x) => x.property));
+        setTenants(tenantsList);
       } catch (err) {
         console.error('Failed to load initial data', err);
       }
@@ -88,20 +115,47 @@ export default function NovoContratoPage() {
     if (selectedPropertyId) {
       const fetchUnits = async () => {
         try {
-          const res = await fetch(`http://localhost:3000/api/v1/properties/${selectedPropertyId}/units`);
-          if (res.ok) {
-            const fetchedUnits: Unit[] = await res.json();
-            setUnits(fetchedUnits);
-            
-            const selectedProp = properties.find(p => p.id === selectedPropertyId);
-            if (selectedProp && selectedProp.type !== 'COMPLEX') {
-              if (fetchedUnits.length === 1) {
-                setValue('unitId', fetchedUnits[0].id, { shouldValidate: true, shouldDirty: true });
+          const res = await fetch(`http://localhost:3000/api/v1/properties/${selectedPropertyId}/units`, {
+            headers: { 'x-account-id': 'account-teste-001' },
+          });
+          if (!res.ok) return;
+          const fetchedUnits: Unit[] = await res.json();
+
+          // Para cada unidade verifica se há contrato ACTIVE
+          const enriched = await Promise.all(
+            fetchedUnits.map(async (u) => {
+              try {
+                const r = await fetch(
+                  `http://localhost:3000/api/v1/leases?unitId=${u.id}&status=ACTIVE`,
+                  { headers: { 'x-account-id': 'account-teste-001' } },
+                );
+                if (!r.ok) return { ...u, occupied: false };
+                const leases = await r.json();
+                return { ...u, occupied: Array.isArray(leases) && leases.length > 0 };
+              } catch {
+                return { ...u, occupied: false };
               }
+            }),
+          );
+
+          // Mostra apenas unidades livres
+          const livres = enriched.filter((u) => !u.occupied);
+          setUnits(livres);
+
+          const selectedProp = properties.find((p) => p.id === selectedPropertyId);
+          if (selectedProp && selectedProp.type !== 'COMPLEX') {
+            if (livres.length > 0) {
+              setValue('unitId', livres[0].id, { shouldValidate: true, shouldDirty: true });
             } else {
               setValue('unitId', '');
             }
+          } else {
+            setValue('unitId', '');
           }
+          // Banner de bloqueio para non-COMPLEX usa enriched
+          setAllOccupied(
+            enriched.length > 0 && enriched.every((u) => u.occupied),
+          );
         } catch (err) {
           console.error('Failed to load units', err);
         }
@@ -115,6 +169,8 @@ export default function NovoContratoPage() {
 
   const selectedProperty = properties.find(p => p.id === selectedPropertyId);
   const showUnitSelect = selectedProperty && selectedProperty.type === 'COMPLEX';
+  const nonComplexOccupied =
+    selectedProperty && selectedProperty.type !== 'COMPLEX' && allOccupied;
 
   const onSubmit = async (data: LeaseFormValues) => {
     console.log('unitId no submit:', data.unitId);
@@ -183,7 +239,10 @@ export default function NovoContratoPage() {
           
           {/* Seção 1 — Imóvel e Unidade */}
           <section>
-            <h2 className="text-lg font-semibold text-gray-900 mb-6 border-b border-gray-100 pb-2">1. Imóvel e Unidade</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-6 border-b border-gray-100 pb-2 flex items-center gap-3">
+              <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-[#EAF3DE] text-[#3B6D11] text-sm font-bold">1</span>
+              Imóvel e Unidade
+            </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -218,7 +277,9 @@ export default function NovoContratoPage() {
                   >
                     <option value="">Selecione uma unidade</option>
                     {units.map(u => (
-                      <option key={u.id} value={u.id}>{u.identifier}</option>
+                      <option key={u.id} value={u.id}>
+                        {u.identifier ?? u.code ?? u.id}
+                      </option>
                     ))}
                   </select>
                   {errors.unitId && <p className="text-[#E24B4A] text-xs mt-1">{errors.unitId.message}</p>}
@@ -227,11 +288,19 @@ export default function NovoContratoPage() {
               {/* Hidden input sempre registrado — fonte única do unitId no RHF */}
               <input type="hidden" {...register('unitId')} />
             </div>
+            {nonComplexOccupied && (
+              <p className="mt-3 text-sm text-[#791F1F] bg-[#FCEBEB] border border-[#E24B4A] rounded-md px-3 py-2">
+                Este imóvel já possui um contrato ativo. Encerre o contrato atual antes de criar um novo.
+              </p>
+            )}
           </section>
 
           {/* Seção 2 — Inquilino */}
           <section>
-            <h2 className="text-lg font-semibold text-gray-900 mb-6 border-b border-gray-100 pb-2">2. Inquilino</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-6 border-b border-gray-100 pb-2 flex items-center gap-3">
+              <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-[#EAF3DE] text-[#3B6D11] text-sm font-bold">2</span>
+              Inquilino
+            </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -253,7 +322,10 @@ export default function NovoContratoPage() {
 
           {/* Seção 3 — Condições do contrato */}
           <section>
-            <h2 className="text-lg font-semibold text-gray-900 mb-6 border-b border-gray-100 pb-2">3. Condições do contrato</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-6 border-b border-gray-100 pb-2 flex items-center gap-3">
+              <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-[#EAF3DE] text-[#3B6D11] text-sm font-bold">3</span>
+              Condições do contrato
+            </h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -322,7 +394,10 @@ export default function NovoContratoPage() {
 
           {/* Seção 4 — Reajuste */}
           <section>
-            <h2 className="text-lg font-semibold text-gray-900 mb-6 border-b border-gray-100 pb-2">4. Reajuste</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-6 border-b border-gray-100 pb-2 flex items-center gap-3">
+              <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-[#EAF3DE] text-[#3B6D11] text-sm font-bold">4</span>
+              Reajuste
+            </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -357,7 +432,10 @@ export default function NovoContratoPage() {
 
           {/* Seção 5 — Garantia */}
           <section>
-            <h2 className="text-lg font-semibold text-gray-900 mb-6 border-b border-gray-100 pb-2">5. Garantia</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-6 border-b border-gray-100 pb-2 flex items-center gap-3">
+              <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-[#EAF3DE] text-[#3B6D11] text-sm font-bold">5</span>
+              Garantia
+            </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -379,7 +457,10 @@ export default function NovoContratoPage() {
 
           {/* Seção 6 — Observações */}
           <section>
-            <h2 className="text-lg font-semibold text-gray-900 mb-6 border-b border-gray-100 pb-2">6. Observações</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-6 border-b border-gray-100 pb-2 flex items-center gap-3">
+              <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-[#EAF3DE] text-[#3B6D11] text-sm font-bold">6</span>
+              Observações
+            </h2>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Observações gerais</label>
               <textarea 

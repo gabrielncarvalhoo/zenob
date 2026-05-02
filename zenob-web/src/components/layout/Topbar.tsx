@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { Search } from 'lucide-react';
+import { Search, Menu } from 'lucide-react';
 
 const tituloPorRota: Record<string, string> = {
   '/dashboard': 'Dashboard',
@@ -29,12 +29,20 @@ export function Topbar() {
   const titulo = obterTitulo(pathname);
 
   return (
-    <header className="fixed top-0 left-60 right-0 h-14 bg-white border-b border-gray-200 z-30 flex items-center px-6 gap-4">
+    <header className="fixed top-0 left-0 md:left-60 right-0 h-14 bg-white border-b border-gray-200 z-30 flex items-center px-4 md:px-6 gap-3 md:gap-4">
+      <button
+        className="md:hidden flex items-center justify-center w-9 h-9 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"
+        onClick={() => window.dispatchEvent(new CustomEvent('sidebar:toggle'))}
+        aria-label="Abrir menu"
+      >
+        <Menu className="w-5 h-5" />
+      </button>
+
       {/* Título da página */}
       <h1 className="text-base font-semibold text-gray-900 shrink-0">{titulo}</h1>
 
-      {/* Barra de busca — centro */}
-      <div className="flex-1 flex justify-center">
+      {/* Barra de busca — centro (oculta em mobile) */}
+      <div className="hidden sm:flex flex-1 justify-center">
         <div className="relative w-full max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" strokeWidth={1.8} />
           <input
@@ -44,6 +52,7 @@ export function Topbar() {
           />
         </div>
       </div>
+      <div className="flex-1 sm:hidden" />
 
       {/* Avatar do usuário */}
       <div className="shrink-0">

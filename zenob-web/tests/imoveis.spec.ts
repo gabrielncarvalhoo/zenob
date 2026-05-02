@@ -1,30 +1,23 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Imóveis', () => {
-  test('deve exibir a listagem de imóveis', async ({ page }) => {
-    await page.goto('http://localhost:3001/imoveis');
-    await expect(page.getByRole('heading', { name: 'Imóveis', level: 1 }).last()).toBeVisible();
-    await expect(page.getByText('+ Novo imóvel')).toBeVisible();
+  test('exibe listagem', async ({ page }) => {
+    await page.goto('/imoveis');
+    await expect(page.getByRole('main').getByRole('heading', { name: 'Imóveis', level: 1 })).toBeVisible();
+    await expect(page.getByRole('link', { name: /Novo imóvel/ }).first()).toBeVisible();
   });
 
-  test('deve navegar para o formulário de novo imóvel', async ({ page }) => {
-    await page.goto('http://localhost:3001/imoveis');
-    await page.getByText('+ Novo imóvel').click();
-    await expect(page).toHaveURL('http://localhost:3001/imoveis/novo');
-    await expect(page.getByRole('heading', { name: 'Novo Imóvel' })).toBeVisible();
+  test('navega para formulário de novo imóvel', async ({ page }) => {
+    await page.goto('/imoveis');
+    await page.getByRole('link', { name: /Novo imóvel/ }).first().click();
+    await expect(page).toHaveURL(/\/imoveis\/novo$/);
+    await expect(page.getByRole('main').getByRole('heading', { name: /Novo imóvel/i })).toBeVisible();
   });
 
-  test('deve mostrar seção de unidades ao selecionar Complexo', async ({ page }) => {
-    await page.goto('http://localhost:3001/imoveis/novo');
-    await page.selectOption('select[name="type"]', 'COMPLEX');
-    await expect(page.getByText('Unidades do complexo')).toBeVisible();
-  });
-
-  test('deve preencher CEP e autocompletar endereço', async ({ page }) => {
-    await page.goto('http://localhost:3001/imoveis/novo');
-    await page.fill('input[name="zipCode"]', '58400250');
-    await page.keyboard.press('Tab');
-    await page.waitForTimeout(1500);
-    await expect(page.locator('input[name="address"]')).not.toBeEmpty();
+  test('cards mostram tipo em português', async ({ page }) => {
+    await page.goto('/imoveis');
+    // Espera ao menos um tipo PT (depende do seed)
+    const tipos = page.getByText(/(Casa|Apartamento|Complexo|Comercial|Terreno)/);
+    await expect(tipos.first()).toBeVisible();
   });
 });

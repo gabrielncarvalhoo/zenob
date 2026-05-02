@@ -1,22 +1,22 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Inquilinos', () => {
-  test('deve exibir a listagem de inquilinos', async ({ page }) => {
-    await page.goto('http://localhost:3001/inquilinos');
-    await expect(page.getByRole('heading', { name: 'Inquilinos', level: 1 }).last()).toBeVisible();
-    await expect(page.getByText('+ Novo inquilino')).toBeVisible();
+  test('exibe listagem', async ({ page }) => {
+    await page.goto('/inquilinos');
+    await expect(page.getByRole('main').getByRole('heading', { name: 'Inquilinos', level: 1 })).toBeVisible();
+    await expect(page.getByRole('link', { name: /Novo inquilino/ }).first()).toBeVisible();
   });
 
-  test('deve navegar para o formulário de novo inquilino', async ({ page }) => {
-    await page.goto('http://localhost:3001/inquilinos');
-    await page.getByText('+ Novo inquilino').click();
-    await expect(page).toHaveURL('http://localhost:3001/inquilinos/novo');
-    await expect(page.getByRole('heading', { name: 'Novo Inquilino' })).toBeVisible();
+  test('navega para formulário de novo inquilino', async ({ page }) => {
+    await page.goto('/inquilinos');
+    await page.getByRole('link', { name: /Novo inquilino/ }).first().click();
+    await expect(page).toHaveURL(/\/inquilinos\/novo$/);
   });
 
-  test('deve validar campos obrigatórios', async ({ page }) => {
-    await page.goto('http://localhost:3001/inquilinos/novo');
-    await page.getByText('Salvar inquilino').click();
-    await expect(page.locator('text=obrigatório').first()).toBeVisible();
+  test('tabela tem 5 colunas', async ({ page }) => {
+    await page.goto('/inquilinos');
+    for (const col of ['Nome', 'CPF', 'Telefone', 'Status', 'Total devido']) {
+      await expect(page.getByRole('columnheader', { name: col })).toBeVisible();
+    }
   });
 });

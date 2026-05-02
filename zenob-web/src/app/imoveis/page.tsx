@@ -1,9 +1,11 @@
 import Link from 'next/link';
+import { MapPin, Home, Building2, Store, Trees, Plus } from 'lucide-react';
+import { PageHeader } from '@/components/layout/PageHeader';
 
 interface Property {
   id: string;
   name: string;
-  type: 'HOUSE' | 'APARTMENT' | 'COMMERCIAL' | 'LAND' | 'BUILDING' | 'OTHER';
+  type: 'HOUSE' | 'APARTMENT' | 'COMMERCIAL' | 'LAND' | 'BUILDING' | 'COMPLEX' | 'OTHER';
   address: string;
   city: string;
   state: string;
@@ -16,15 +18,12 @@ interface Property {
 async function getProperties(): Promise<Property[]> {
   try {
     const res = await fetch('http://localhost:3000/api/v1/properties', {
+      headers: { 'x-account-id': 'account-teste-001' },
       cache: 'no-store',
     });
-    if (!res.ok) {
-      console.error('Failed to fetch properties:', res.statusText);
-      return [];
-    }
+    if (!res.ok) return [];
     return res.json();
-  } catch (error) {
-    console.error('Error fetching properties:', error);
+  } catch {
     return [];
   }
 }
@@ -35,82 +34,132 @@ const PROPERTY_TYPE_MAP: Record<string, string> = {
   COMMERCIAL: 'Comercial',
   LAND: 'Terreno',
   BUILDING: 'Prédio / Edifício',
+  COMPLEX: 'Complexo',
   OTHER: 'Outro',
 };
+
+function getTypeIcon(type: Property['type']) {
+  const cls = 'w-5 h-5 text-[#3B6D11]';
+  switch (type) {
+    case 'HOUSE':
+      return <Home className={cls} />;
+    case 'APARTMENT':
+    case 'BUILDING':
+    case 'COMPLEX':
+      return <Building2 className={cls} />;
+    case 'COMMERCIAL':
+      return <Store className={cls} />;
+    case 'LAND':
+      return <Trees className={cls} />;
+    default:
+      return <Home className={cls} />;
+  }
+}
 
 export default async function ImoveisPage() {
   const properties = await getProperties();
 
   return (
     <div className="container mx-auto py-8 px-4 max-w-6xl">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Imóveis</h1>
-        <Link 
-          href="/imoveis/novo"
-          className="bg-[#3B6D11] hover:bg-[#27500A] text-white px-4 py-2 rounded-md font-medium transition-colors cursor-pointer"
-        >
-          + Novo imóvel
-        </Link>
-      </div>
+      <PageHeader
+        title="Imóveis"
+        subtitle={`${properties.length} ${properties.length === 1 ? 'imóvel cadastrado' : 'imóveis cadastrados'}`}
+        action={
+          <Link
+            href="/imoveis/novo"
+            className="inline-flex items-center gap-2 bg-[#3B6D11] hover:bg-[#27500A] text-white px-4 py-2 rounded-md font-medium transition-colors"
+          >
+            <Plus className="w-4 h-4" /> Novo imóvel
+          </Link>
+        }
+      />
 
       {properties.length === 0 ? (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
           <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum imóvel encontrado</h3>
           <p className="text-gray-500 mb-6">Você ainda não cadastrou nenhum imóvel.</p>
-          <button className="bg-[#3B6D11] hover:bg-[#27500A] text-white px-4 py-2 rounded-md font-medium transition-colors">
-            Cadastrar primeiro imóvel
-          </button>
+          <Link
+            href="/imoveis/novo"
+            className="inline-flex items-center gap-2 bg-[#3B6D11] hover:bg-[#27500A] text-white px-4 py-2 rounded-md font-medium transition-colors"
+          >
+            <Plus className="w-4 h-4" /> Cadastrar primeiro imóvel
+          </Link>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {properties.map((property) => {
             const typeLabel = PROPERTY_TYPE_MAP[property.type] || property.type;
             const vacantCount = property.vacantUnits ?? 0;
-            
+            const isMulti = property.type === 'COMPLEX' || property.type === 'BUILDING';
+
             return (
-              <Link 
-                href={`/imoveis/${property.id}`} 
+              <Link
+                href={`/imoveis/${property.id}`}
                 key={property.id}
-                className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow overflow-hidden flex flex-col"
+                className="bg-white rounded-xl border border-gray-200 hover:border-[#3B6D11] hover:shadow-md transition-all overflow-hidden flex flex-col group"
               >
-                <div className="p-5 flex-grow">
-                  <div className="flex justify-between items-start mb-4">
-                    <h2 className="text-xl font-semibold text-gray-900 line-clamp-1" title={property.name}>
-                      {property.name}
-                    </h2>
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                      {typeLabel}
-                    </span>
+                <div className="bg-gradient-to-br from-[#EAF3DE] to-white p-5 border-b border-gray-100">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      {getTypeIcon(property.type)}
+                      <span className="text-xs font-semibold text-[#3B6D11] uppercase tracking-wider">
+                        {typeLabel}
+                      </span>
+                    </div>
+                    {isMulti ? (
+                      !property.totalUnits ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#F3F4F6] text-[#6B7280]">
+                          Sem unidades
+                        </span>
+                      ) : (
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                            vacantCount > 0
+                              ? 'bg-[#FAEEDA] text-[#BA7517]'
+                              : 'bg-[#EAF3DE] text-[#3B6D11]'
+                          }`}
+                        >
+                          {vacantCount > 0
+                            ? `${vacantCount} ${vacantCount === 1 ? 'vaga' : 'vagas'}`
+                            : 'Lotado'}
+                        </span>
+                      )
+                    ) : (
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                          vacantCount > 0
+                            ? 'bg-[#FAEEDA] text-[#BA7517]'
+                            : 'bg-[#EAF3DE] text-[#3B6D11]'
+                        }`}
+                      >
+                        {vacantCount > 0 ? 'Vago' : 'Ocupado'}
+                      </span>
+                    )}
                   </div>
-                  
-                  <div className="space-y-2 text-sm text-gray-600 mb-4">
-                    <p className="flex items-center">
-                      <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                      {property.city}{property.state ? ` - ${property.state}` : ''}
-                    </p>
-                    <p className="flex items-center">
-                      <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
-                      {property.totalUnits || 0} {property.totalUnits === 1 ? 'unidade' : 'unidades'} totais
-                    </p>
-                  </div>
+                  <h2
+                    className="text-lg font-semibold text-gray-900 line-clamp-1 group-hover:text-[#3B6D11] transition-colors"
+                    title={property.name}
+                  >
+                    {property.name}
+                  </h2>
                 </div>
-                
-                <div className="bg-gray-50 px-5 py-3 border-t border-gray-100 flex justify-between items-center mt-auto">
-                  <span className="text-sm font-medium text-gray-500">
-                    Status:
-                  </span>
-                  {!property.totalUnits || property.totalUnits === 0 ? (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#F3F4F6] text-[#6B7280]">
-                      Sem unidades
+
+                <div className="p-5 flex-grow space-y-2 text-sm text-gray-600">
+                  <p className="flex items-start gap-2">
+                    <MapPin className="w-4 h-4 mt-0.5 text-gray-400 flex-shrink-0" />
+                    <span className="truncate">
+                      {property.address}, {property.city}
+                      {property.state ? ` - ${property.state}` : ''}
                     </span>
-                  ) : (
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                      vacantCount > 0 
-                        ? 'bg-[#F3F4F6] text-[#6B7280]' 
-                        : 'bg-[#EAF3DE] text-[#3B6D11]'
-                    }`}>
-                      {vacantCount} {vacantCount === 1 ? 'vaga' : 'vagas'}
-                    </span>
+                  </p>
+                  {isMulti && (
+                    <p className="flex items-center gap-2">
+                      <Building2 className="w-4 h-4 text-gray-400" />
+                      <span>
+                        {property.totalUnits || 0}{' '}
+                        {property.totalUnits === 1 ? 'unidade' : 'unidades'}
+                      </span>
+                    </p>
                   )}
                 </div>
               </Link>

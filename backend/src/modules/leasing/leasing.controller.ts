@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Param, Body } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Param, Body, Query } from '@nestjs/common';
 import { LeasingService } from './leasing.service';
 
 @Controller('leases')
@@ -6,9 +6,12 @@ export class LeasingController {
   constructor(private readonly leasingService: LeasingService) {}
 
   @Get()
-  findAll() {
+  findAll(@Query() query: { unitId?: string; status?: string }) {
     const accountId = 'account-teste-001';
-    return this.leasingService.findAllContracts(accountId);
+    return this.leasingService.findAllContracts(accountId, {
+      unitId: query.unitId,
+      status: query.status,
+    });
   }
 
   @Get(':id')

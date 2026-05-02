@@ -1,19 +1,30 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { ReceivablesList } from './ReceivablesList';
+import { LeaseAdjustmentActions } from './LeaseAdjustmentActions';
+import { ContractActions } from './ContractActions';
+import { AlertTriangle, CalendarClock, CheckCircle2, Wallet } from 'lucide-react';
 
 interface LeaseContract {
   id: string;
+  unitId: string;
+  primaryTenantId: string;
   startDate: string;
   endDate: string;
   dueDay: number;
-  rentAmount: number;
-  depositAmount: number | null;
+  rentAmount: number | string;
+  depositAmount: number | string | null;
   adjustmentIndex: 'IGP_M' | 'IPCA' | 'INPC' | 'FIXED';
   adjustmentFrequencyMonths: number;
   guaranteeType: 'DEPOSIT' | 'SURETY' | 'INSURANCE' | 'NONE';
+  lateFeeType: string;
+  lateFeeValue: number | string;
+  interestType: string;
+  interestValue: number | string;
   status: 'DRAFT' | 'ACTIVE' | 'EXPIRED' | 'TERMINATED';
   notes: string | null;
   terminationDate: string | null;
+  nextAdjustmentDate?: string;
   unit?: {
     code: string;
     property?: {
@@ -38,17 +49,36 @@ interface LeaseContract {
 async function getLease(id: string): Promise<LeaseContract | null> {
   try {
     const res = await fetch(`http://localhost:3000/api/v1/leases/${id}`, {
+      headers: { 'x-account-id': 'account-teste-001' },
       cache: 'no-store',
     });
     if (!res.ok) {
       if (res.status === 404) return null;
-      console.error('Failed to fetch lease:', res.statusText);
       return null;
     }
     return res.json();
-  } catch (error) {
-    console.error('Error fetching lease:', error);
+  } catch {
     return null;
+  }
+}
+
+interface ReceivableSummary {
+  status: string;
+  dueDate: string;
+  paidAmount: string | number;
+  balanceAmount: string | number;
+}
+
+async function getReceivablesForLease(leaseId: string): Promise<ReceivableSummary[]> {
+  try {
+    const res = await fetch(`http://localhost:3000/api/v1/receivables?leaseId=${leaseId}`, {
+      headers: { 'x-account-id': 'account-teste-001' },
+      cache: 'no-store',
+    });
+    if (!res.ok) return [];
+    return res.json();
+  } catch {
+    return [];
   }
 }
 
@@ -77,8 +107,9 @@ function formatDate(dateString: string) {
   }
 }
 
-function formatCurrency(amount: number) {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(amount);
+function formatCurrency(amount: number | string | null | undefined) {
+  const n = Number(amount ?? 0);
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(isNaN(n) ? 0 : n);
 }
 
 function translateAdjustmentIndex(index: LeaseContract['adjustmentIndex']) {
@@ -101,12 +132,47 @@ function translateGuaranteeType(type: LeaseContract['guaranteeType']) {
   return map[type] || type;
 }
 
+function getDaysUntil(dateString: string) {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffTime = date.getTime() - now.getTime();
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+}
+
+function calculateNextAdjustment(startDate: string, freqMonths: number) {
+  const start = new Date(startDate);
+  const now = new Date();
+  const next = new Date(start);
+  while (next <= now) {
+    next.setMonth(next.getMonth() + freqMonths);
+  }
+  return next.toISOString();
+}
+
 export default async function DetalheContratoPage({ params }: { params: { id: string } }) {
-  const lease = await getLease(params.id);
+  const [lease, receivables] = await Promise.all([
+    getLease(params.id),
+    getReceivablesForLease(params.id),
+  ]);
 
   if (!lease) {
     notFound();
   }
+
+  const adjDate = lease.nextAdjustmentDate || calculateNextAdjustment(lease.startDate, lease.adjustmentFrequencyMonths);
+  const daysToAdj = getDaysUntil(adjDate);
+  const needsAdjustmentAlert = daysToAdj >= 0 && daysToAdj <= 30 && lease.status === 'ACTIVE';
+  const daysUntilEnd = getDaysUntil(lease.endDate);
+  const needsRenewalAlert = daysUntilEnd >= 0 && daysUntilEnd <= 60 && lease.status === 'ACTIVE';
+
+  // KPIs do contrato
+  const totalPago = receivables.reduce((acc, r) => acc + Number(r.paidAmount), 0);
+  const saldoAberto = receivables
+    .filter((r) => ['PENDING', 'PARTIAL', 'OVERDUE'].includes(r.status))
+    .reduce((acc, r) => acc + Number(r.balanceAmount), 0);
+  const proximoVenc = receivables
+    .filter((r) => ['PENDING', 'PARTIAL', 'OVERDUE'].includes(r.status))
+    .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())[0];
 
   return (
     <div className="container mx-auto py-8 px-4 max-w-4xl">
@@ -123,9 +189,66 @@ export default async function DetalheContratoPage({ params }: { params: { id: st
       </div>
 
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Detalhes do Contrato</h1>
+        <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+          Detalhes do Contrato
+          {needsAdjustmentAlert && (
+            <div title={`Reajuste previsto em ${daysToAdj} dias`} className="cursor-help mt-1">
+              <AlertTriangle className="w-6 h-6 text-[#BA7517]" />
+            </div>
+          )}
+        </h1>
         <div>
           {getStatusBadge(lease.status)}
+        </div>
+      </div>
+
+      {needsRenewalAlert && (
+        <div className="bg-[#E6F1FB] border border-[#378ADD] rounded-xl shadow-sm p-6 mb-8">
+          <div className="flex items-start gap-4">
+            <CalendarClock className="w-8 h-8 text-[#378ADD] shrink-0 mt-0.5" />
+            <div>
+              <h2 className="text-lg font-bold text-[#0C447C] mb-1">Contrato próximo do vencimento</h2>
+              <p className="text-[#1A5A9B] text-sm">
+                Falta{daysUntilEnd !== 1 ? 'm' : ''} {daysUntilEnd} dia{daysUntilEnd !== 1 ? 's' : ''} para o término deste contrato.
+                Considere renovar ou encerrar formalmente.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {needsAdjustmentAlert && (
+        <LeaseAdjustmentActions leaseId={lease.id} daysToAdjustment={daysToAdj} />
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Próximo vencimento</span>
+            <CalendarClock className="w-4 h-4 text-[#BA7517]" />
+          </div>
+          <p className="text-xl font-bold text-gray-900">
+            {proximoVenc ? formatDate(proximoVenc.dueDate) : '—'}
+          </p>
+          {proximoVenc && (
+            <p className="text-xs text-gray-500 mt-1">{formatCurrency(proximoVenc.balanceAmount as number)}</p>
+          )}
+        </div>
+        <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total recebido</span>
+            <CheckCircle2 className="w-4 h-4 text-[#3B6D11]" />
+          </div>
+          <p className="text-xl font-bold text-[#3B6D11]">{formatCurrency(totalPago)}</p>
+        </div>
+        <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Saldo aberto</span>
+            <Wallet className={`w-4 h-4 ${saldoAberto > 0 ? 'text-[#E24B4A]' : 'text-gray-400'}`} />
+          </div>
+          <p className={`text-xl font-bold ${saldoAberto > 0 ? 'text-[#E24B4A]' : 'text-gray-900'}`}>
+            {formatCurrency(saldoAberto)}
+          </p>
         </div>
       </div>
 
@@ -267,6 +390,30 @@ export default async function DetalheContratoPage({ params }: { params: { id: st
           )}
         </div>
       </div>
+
+      <ContractActions
+        leaseId={lease.id}
+        status={lease.status}
+        daysUntilEnd={daysUntilEnd}
+        leaseData={{
+          unitId: lease.unitId,
+          primaryTenantId: lease.primaryTenantId,
+          endDate: lease.endDate,
+          rentAmount: lease.rentAmount,
+          dueDay: lease.dueDay,
+          depositAmount: lease.depositAmount,
+          adjustmentIndex: lease.adjustmentIndex,
+          adjustmentFrequencyMonths: lease.adjustmentFrequencyMonths,
+          guaranteeType: lease.guaranteeType,
+          lateFeeType: lease.lateFeeType,
+          lateFeeValue: lease.lateFeeValue,
+          interestType: lease.interestType,
+          interestValue: lease.interestValue,
+          notes: lease.notes,
+        }}
+      />
+
+      <ReceivablesList leaseId={lease.id} />
     </div>
   );
 }

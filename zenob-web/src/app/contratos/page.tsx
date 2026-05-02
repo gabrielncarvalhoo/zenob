@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { LeaseList } from './LeaseList';
 
 interface LeaseContract {
   id: string;
@@ -15,6 +16,7 @@ interface LeaseContract {
   status: 'DRAFT' | 'ACTIVE' | 'EXPIRED' | 'TERMINATED';
   notes: string | null;
   terminationDate: string | null;
+  nextAdjustmentDate?: string;
   unit?: {
     property?: {
       name: string;
@@ -43,35 +45,6 @@ async function getLeases(): Promise<LeaseContract[]> {
   }
 }
 
-function getStatusBadge(status: LeaseContract['status']) {
-  switch (status) {
-    case 'ACTIVE':
-      return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#EAF3DE] text-[#3B6D11]">Ativo</span>;
-    case 'DRAFT':
-      return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#F3F4F6] text-[#6B7280]">Rascunho</span>;
-    case 'EXPIRED':
-      return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#FAEEDA] text-[#633806]">Vencido</span>;
-    case 'TERMINATED':
-      return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#FCEBEB] text-[#791F1F]">Rescindido</span>;
-    default:
-      return null;
-  }
-}
-
-function formatDate(dateString: string) {
-  if (!dateString) return '-';
-  try {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
-  } catch {
-    return dateString;
-  }
-}
-
-function formatCurrency(amount: number) {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(amount);
-}
-
 export default async function ContratosPage() {
   const leases = await getLeases();
 
@@ -93,52 +66,7 @@ export default async function ContratosPage() {
           </Link>
         </div>
       ) : (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <div className="min-w-[900px] w-full">
-              <div className="grid grid-cols-[1fr_1.5fr_1.5fr_1.5fr_1fr_1fr_1fr] bg-gray-50 border-b border-gray-200 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="px-6 py-4">Status</div>
-                <div className="px-6 py-4">Imóvel</div>
-                <div className="px-6 py-4">Inquilino</div>
-                <div className="px-6 py-4">Aluguel</div>
-                <div className="px-6 py-4">Venc.</div>
-                <div className="px-6 py-4">Início</div>
-                <div className="px-6 py-4">Término</div>
-              </div>
-              <div className="bg-white divide-y divide-gray-200">
-                {leases.map((lease) => (
-                  <Link 
-                    href={`/contratos/${lease.id}`} 
-                    key={lease.id} 
-                    className="grid grid-cols-[1fr_1.5fr_1.5fr_1.5fr_1fr_1fr_1fr] hover:bg-gray-50 transition-colors items-center group cursor-pointer"
-                  >
-                    <div className="px-6 py-4 whitespace-nowrap">
-                      {getStatusBadge(lease.status)}
-                    </div>
-                    <div className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 group-hover:text-[#3B6D11] transition-colors truncate">
-                      {lease.unit?.property?.name || '-'}
-                    </div>
-                    <div className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 truncate">
-                      {lease.leaseTenants?.[0]?.tenant?.fullName || '-'}
-                    </div>
-                    <div className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {formatCurrency(lease.rentAmount)}
-                    </div>
-                    <div className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      Dia {lease.dueDay}
-                    </div>
-                    <div className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {formatDate(lease.startDate)}
-                    </div>
-                    <div className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {formatDate(lease.endDate)}
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
+        <LeaseList initialLeases={leases} />
       )}
     </div>
   );

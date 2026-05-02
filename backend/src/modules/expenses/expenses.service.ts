@@ -42,7 +42,7 @@ export class ExpensesService {
       data: {
         ...data,
         accountId,
-        amount: parseFloat(data.amount),
+        amount: String(data.amount),
         dueDate: new Date(data.dueDate),
         paidDate: data.paidDate ? new Date(data.paidDate) : null,
       },
@@ -54,7 +54,7 @@ export class ExpensesService {
       where: { id },
       data: {
         ...data,
-        ...(data.amount && { amount: parseFloat(data.amount) }),
+        ...(data.amount !== undefined && { amount: String(data.amount) }),
         ...(data.dueDate && { dueDate: new Date(data.dueDate) }),
         ...(data.paidDate && { paidDate: new Date(data.paidDate) }),
       },

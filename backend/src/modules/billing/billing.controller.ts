@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Param, Body } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Param, Body, Query } from '@nestjs/common';
 import { BillingService } from './billing.service';
 
 @Controller('receivables')
@@ -6,9 +6,11 @@ export class BillingController {
   constructor(private readonly billingService: BillingService) {}
 
   @Get()
-  findAll() {
+  findAll(@Query() query: { leaseId?: string; limit?: string; tenantId?: string }) {
     const accountId = 'account-teste-001';
-    return this.billingService.findAllReceivables(accountId);
+    // leaseId mapeia para leaseContractId no Prisma; limit controla quantidade (dueDate ASC)
+    const limit = query.limit ? parseInt(query.limit, 10) : undefined;
+    return this.billingService.findAllReceivables(accountId, query.leaseId, limit, query.tenantId);
   }
 
   @Get(':id')

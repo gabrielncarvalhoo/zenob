@@ -43,6 +43,9 @@ async function getProperty(id: string): Promise<Property | null> {
   try {
     const res = await fetch(`http://localhost:3000/api/v1/properties/${id}`, {
       cache: 'no-store',
+      headers: {
+        'x-account-id': 'account-teste-001',
+      },
     });
     if (!res.ok) {
       if (res.status === 404) return null;
@@ -55,28 +58,31 @@ async function getProperty(id: string): Promise<Property | null> {
   }
 }
 
+async function getActiveLease(unitId: string) {
+  try {
+    const res = await fetch(`http://localhost:3000/api/v1/leases?unitId=${unitId}&status=ACTIVE`, {
+      cache: 'no-store',
+      headers: {
+        'x-account-id': 'account-teste-001',
+      },
+    });
+    if (!res.ok) return null;
+    const leases = await res.json();
+    return leases.length > 0 ? leases[0] : null;
+  } catch (error) {
+    console.error(error);
+    return null;
+  }
+}
 
 
-const formatCurrency = (value: number) => {
+
+const formatCurrency = (value: number | string | null | undefined) => {
+  const n = Number(value ?? 0);
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
-  }).format(value);
-};
-
-const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
-  OCCUPIED: {
-    label: 'Ocupada',
-    className: 'bg-[#EAF3DE] text-[#3B6D11]',
-  },
-  VACANT: {
-    label: 'Vaga',
-    className: 'bg-[#F3F4F6] text-[#6B7280]',
-  },
-  MAINTENANCE: {
-    label: 'Manutenção',
-    className: 'bg-[#FAEEDA] text-[#633806]',
-  },
+  }).format(isNaN(n) ? 0 : n);
 };
 
 const PROPERTY_TYPE_MAP: Record<string, string> = {
@@ -88,13 +94,16 @@ const PROPERTY_TYPE_MAP: Record<string, string> = {
   OTHER: 'Outro',
 };
 
-export default async function ImovelDetalhePage({ params }: { params: { id: string } }) {
+export default async function ImoveisDetalhePage({ params }: { params: { id: string } }) {
   const property = await getProperty(params.id);
 
   if (!property) {
     return (
       <div className="container mx-auto py-12 px-4 text-center">
         <h2 className="text-2xl font-bold text-gray-900 mb-4">Imóvel não encontrado</h2>
+        <div className="bg-[#FCEBEB] border border-[#E24B4A] text-[#791F1F] px-4 py-3 rounded-md max-w-md mx-auto mb-4">
+          Falha ao carregar as informações do imóvel.
+        </div>
         <Link href="/imoveis" className="text-[#3B6D11] hover:underline">
           Voltar para a lista de imóveis
         </Link>
@@ -104,6 +113,18 @@ export default async function ImovelDetalhePage({ params }: { params: { id: stri
 
   const typeLabel = PROPERTY_TYPE_MAP[property.type] || property.type;
   const units = property.units || [];
+  
+  // Fetch active leases for all units in parallel
+  const unitLeases = await Promise.all(
+    units.map(async (unit) => {
+      const lease = await getActiveLease(unit.id);
+      return { unitId: unit.id, lease };
+    })
+  );
+  
+  const getLeaseForUnit = (unitId: string) => {
+    return unitLeases.find(ul => ul.unitId === unitId)?.lease || null;
+  };
 
   return (
     <div className="container mx-auto py-8 px-4 max-w-6xl">
@@ -125,18 +146,22 @@ export default async function ImovelDetalhePage({ params }: { params: { id: stri
               </span>
             </div>
           </div>
-          <button className="bg-[#3B6D11] hover:bg-[#27500A] text-white px-4 py-2 rounded-md font-medium transition-colors">
+          <Link href={`/imoveis/${property.id}/editar`} className="bg-[#3B6D11] hover:bg-[#27500A] text-white px-4 py-2 rounded-md font-medium transition-colors inline-block">
             Editar imóvel
-          </button>
+          </Link>
         </div>
       </div>
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
-          <h2 className="text-lg font-semibold text-gray-900">Unidades ({units.length})</h2>
-          <button className="text-sm font-medium text-[#3B6D11] hover:text-[#27500A]">
-            + Adicionar unidade
-          </button>
+          <h2 className="text-lg font-semibold text-gray-900">
+            {property.type === 'COMPLEX' ? `Unidades (${units.length})` : 'Unidade'}
+          </h2>
+          {property.type === 'COMPLEX' && (
+            <button className="text-sm font-medium text-[#3B6D11] hover:text-[#27500A]">
+              + Adicionar unidade
+            </button>
+          )}
         </div>
         
         {units.length === 0 ? (
@@ -158,10 +183,7 @@ export default async function ImovelDetalhePage({ params }: { params: { id: stri
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {units.map((unit) => {
-                  const status = STATUS_CONFIG[unit.occupancyStatus] || {
-                    label: unit.occupancyStatus,
-                    className: 'bg-gray-100 text-gray-800',
-                  };
+                  const lease = getLeaseForUnit(unit.id);
                   
                   return (
                     <tr key={unit.id} className="hover:bg-gray-50">
@@ -173,27 +195,40 @@ export default async function ImovelDetalhePage({ params }: { params: { id: stri
                       </td>
                       <td className="px-6 py-4 text-gray-600">{unit.description}</td>
                       <td className="px-6 py-4 text-gray-600">
-                        {unit.occupancyStatus === 'VACANT' || !unit.leaseContracts ? (
+                        {!lease ? (
                           '-'
                         ) : (
-                          unit.leaseContracts
-                            .filter(lc => lc.status === 'ACTIVE')
-                            .flatMap(lc => lc.leaseTenants)
-                            .map((lt, idx, arr) => (
-                              <span key={lt.tenant.id}>
-                                <Link href={`/inquilinos/${lt.tenant.id}`} className="hover:text-[#3B6D11] hover:underline transition-colors block md:inline">
-                                  {lt.tenant.fullName}
-                                </Link>
-                                {idx < arr.length - 1 ? ', ' : ''}
-                              </span>
-                            ))
+                          lease.leaseTenants?.map((lt: { tenant: { id: string; fullName: string; } }, idx: number, arr: { tenant: { id: string; fullName: string; } }[]) => (
+                            <span key={lt.tenant.id}>
+                              <Link href={`/inquilinos/${lt.tenant.id}`} className="hover:text-[#3B6D11] hover:underline transition-colors block md:inline">
+                                {lt.tenant.fullName}
+                              </Link>
+                              {idx < arr.length - 1 ? ', ' : ''}
+                            </span>
+                          ))
                         )}
                       </td>
-                      <td className="px-6 py-4 text-gray-600">{formatCurrency(unit.monthlyRent)}</td>
+                      <td className="px-6 py-4 text-gray-600">
+                        {lease ? formatCurrency(lease.rentAmount) : formatCurrency(unit.monthlyRent)}
+                      </td>
                       <td className="px-6 py-4 text-right">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${status.className}`}>
-                          {status.label}
-                        </span>
+                        {!lease ? (
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#F3F4F6] text-[#6B7280]`}>
+                            Vaga
+                          </span>
+                        ) : (
+                          <div className="flex flex-col items-end gap-2">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#EAF3DE] text-[#3B6D11]`}>
+                              Ativo
+                            </span>
+                            <Link 
+                              href={`/contratos/${lease.id}`}
+                              className="text-xs text-[#3B6D11] hover:text-[#27500A] font-medium underline"
+                            >
+                              Ver contrato
+                            </Link>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );

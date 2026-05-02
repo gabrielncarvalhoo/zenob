@@ -11,8 +11,8 @@ export function AppLayout({ children }: AppLayoutProps) {
       <Sidebar />
       <Topbar />
       {/* Conteúdo principal — deslocado pela sidebar (240px) e topbar (56px) */}
-      <main className="ml-60 pt-14">
-        <div className="p-6">{children}</div>
+      <main className="md:ml-60 pt-14">
+        <div className="p-4 md:p-6">{children}</div>
       </main>
     </div>
   );
