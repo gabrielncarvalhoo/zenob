@@ -1,5 +1,5 @@
 # ZENOB — Contexto do Projeto
-> Atualizado em: Abril 2026
+> Atualizado em: Maio 2026
 
 ## O que é o Zenob
 SaaS de **administração de aluguéis** para proprietários particulares e pequenos investidores.
@@ -21,8 +21,8 @@ Inspirado no Rentila. **NÃO é marketplace** — foco 100% em backoffice.
 | Banco local | PostgreSQL (Docker) | 16 |
 | Frontend | Next.js + React + TypeScript | 14 |
 | UI | Tailwind CSS + shadcn/ui | ativo |
-| Tabelas | TanStack Table v8 | a integrar |
-| Formulários | React Hook Form + Zod | a integrar |
+| Tabelas | TanStack Table v8 | ativo |
+| Formulários | React Hook Form + Zod | ativo |
 | Filas | Redis + BullMQ | futuro |
 | Auth | Clerk | futuro |
 | Storage | Cloudflare R2 | futuro |
@@ -31,126 +31,183 @@ Inspirado no Rentila. **NÃO é marketplace** — foco 100% em backoffice.
 | PDF | Playwright (HTML → PDF) | futuro |
 
 ## Fluxo de trabalho com IA
-* **Frontend** → Gemini 2.5 Pro no Antigravity
-* **Backend** → Claude Code no Antigravity
-* **Decisões, debug, dúvidas** → Claude.ai (aqui)
+* **Frontend visual** → Gemini 3.1 Pro no Antigravity
+* **Backend, lógica, bugs** → Claude Code (MiniMax para tarefas simples, Sonnet/Opus para complexidade)
+* **Decisões, debug difícil** → Claude.ai
 * **Design e protótipos** → Claude Design
-* **Documentação** → Claude Cowork
 
 ## Estrutura do Projeto
 zenob/
-├── CLAUDE.md
-├── CONTEXTO.md
-├── backend/          ← NestJS API
+├── backend/          ← NestJS API (porta 3000)
 │   ├── prisma/
 │   │   └── schema.prisma
 │   └── src/
 │       └── modules/
+│           ├── dashboard/   ✅
 │           ├── portfolio/    ✅
 │           ├── tenants/     ✅
 │           ├── leasing/     ✅
 │           ├── billing/     ✅
-│           ├── expenses/    ✅
-│           └── dashboard/   ✅
-└── zenob-web/        ← Next.js frontend
+│           └── expenses/    ✅
+└── zenob-web/        ← Next.js frontend (porta 3000/3001)
     └── src/
         ├── app/
         │   ├── dashboard/    ✅
-        │   ├── imoveis/      ✅
-        │   └── inquilinos/   ✅
-        └── components/
-            └── layout/       ✅
-
-## Banco de Dados
-**Container Docker:** `zenob-db`
-**Conexão:** `postgresql://zenob:zenob123@localhost:5432/zenob_dev`
+        │   ├── imoveis/      ✅ + novo/editar
+        │   ├── inquilinos/   ✅ + novo
+        │   ├── contratos/    ✅ + novo/[id]
+        │   ├── cobrancas/    ✅ + [id]
+        │   └── despesas/     ✅ + novo/[id]
+        └── components/layout/ ✅
 
 ## API — Base URL
 `http://localhost:3000/api/v1`
 
 ### Endpoints disponíveis
-GET/POST        /properties
-GET/PATCH       /properties/:id
-GET/POST        /properties/:id/units
-GET/POST/PATCH  /tenants, /tenants/:id
-GET/POST/PATCH  /leases, /leases/:id
-PATCH           /leases/:id/status  → muda status; dispara geração de receivables se ACTIVE
-GET             /receivables, /receivables/:id
-POST            /receivables/:id/payments
-PATCH           /receivables/:id/status
-POST            /receivables/:id/waive
-GET/POST/PATCH  /expenses, /expenses/:id
-PATCH           /expenses/:id/pay
-DELETE          /expenses/:id
-GET             /dashboard
+
+**Dashboard**
+GET             /dashboard                          KPIs do mês atual
+
+**Portfolio (Properties/Imóveis)**
+GET             /properties                         Lista imóveis + unidades
+GET             /properties/:id                     Detalhe imóvel + contratos ativos
+POST            /properties                         Criar imóvel (auto-cria 1 unidade)
+PATCH           /properties/:id                     Atualizar imóvel
+GET             /properties/:id/units               Lista unidades
+POST            /properties/:id/units               Criar unidade
+
+**Tenants (Inquilinos)**
+GET             /tenants                            Lista inquilinos
+GET             /tenants/:id                        Detalhe inquilino + contratos
+POST            /tenants                            Criar inquilino
+PATCH           /tenants/:id                       Atualizar inquilino
+
+**Leasing (Contratos)**
+GET             /leases                             Lista contratos (filtros: unitId, status)
+GET             /leases/:id                         Detalhe contrato completo
+POST            /leases                             Criar contrato
+PATCH           /leases/:id/status                  Atualizar status (ativa/desativa)
+POST           /leases/:id/terminate                Encerrar contrato (TERMINATED)
+POST           /leases/:id/cancel                   Cancelar contrato (CANCELLED)
+PATCH          /leases/:id/rent-amount              Ajustar valor do aluguel
+
+**Billing (Cobranças/Pagamentos)**
+GET             /receivables                        Lista cobranças (filtros: leaseId, tenantId, limit)
+GET             /receivables/:id                    Detalhe cobrança
+POST            /receivables/:id/payments            Registrar pagamento (distribui automaticamente)
+PATCH           /receivables/:id/status             Atualizar status
+POST            /receivables/:id/waive              Marcar como isento (WAIVED)
+
+**Expenses (Despesas)**
+GET             /expenses                           Lista despesas (filtros: propertyId, isPaid, category)
+GET             /expenses/:id                       Detalhe despesa
+POST            /expenses                           Criar despesa
+PATCH           /expenses/:id                       Atualizar despesa
+PATCH           /expenses/:id/pay                   Marcar como paga
+DELETE          /expenses/:id                       Excluir despesa
 
 ## Módulos backend — detalhes
 
 ### leasing
-* `findAllContracts` e `findOneContract` fazem `include` de `unit → property` e `leaseTenants → tenant`
-* `createContract` insere valores padrão: `lateFeeType: PERCENT`, `lateFeeValue: 2`, `interestType: MONTHLY`, `interestValue: 1`
-* Após criar contrato, cria automaticamente `leaseTenant` com `role: PRIMARY`
-* Enums: `LeaseStatus` (DRAFT/ACTIVE/EXPIRED/TERMINATED), `AdjustmentIndex` (IGP_M/IPCA/INPC/FIXED), `GuaranteeType` (DEPOSIT/SURETY/INSURANCE/NONE)
-* **Geração automática de receivables:**
-  - Disparada ao criar contrato com `status: ACTIVE` ou ao fazer PATCH status DRAFT → ACTIVE
-  - Primeiro mês proporcional: se `startDate < dueDay`, gera receivable proporcional (`rentAmount * diasRestantes / diasNoMes`); se `startDate >= dueDay`, pula para o mês seguinte cheio
-  - `dueDay` > dias do mês → usa último dia do mês (ex: dia 31 em fevereiro → 28)
-  - Idempotência: se já existem receivables para o `leaseId`, retorna os existentes silenciosamente
-  - Atomicidade via `prisma.$transaction`
-  - Toda lógica de datas em UTC puro para evitar bugs de DST
+* `findAllContracts` inclui `unit → property`, `leaseTenants → tenant`, `receivables`
+* `createContract` valida duplicidade de contrato ativo na mesma unidade
+* Geração automática de receivables ao criar/ativar contrato
+* Status: DRAFT | ACTIVE | EXPIRED | TERMINATED | CANCELLED
+* **Ajuste de aluguel** (`PATCH /leases/:id/rent-amount`) — atualiza `rentAmount` sem afectar cobranças existentes
+* **Cancelar contrato** (`POST /leases/:id/cancel`) — marca como CANCELLED
 
 ### billing
-* `registerPayment` usa `prisma.$transaction` para atomicidade
-* Suporta pagamento parcial: atualiza `paidAmount`, `balanceAmount`, `status`
-* Status: PENDING/PAID/PARTIAL/OVERDUE/RENEGOTIATED/WAIVED
-* Se `novoSaldo <= 0` → status PAID + seta `paidAt`
-* Se `novoSaldo > 0` → status PARTIAL
-* Retorna `{ payment, resumo: { valorPago, totalPago, saldoRestante, credito, status } }`
+* `registerPayment` distribui pagamento automaticamente: primeiro overdue, depois current, depois future
+* Cria próximo receivable automaticamente se contrato ACTIVE e não existir
+* `aplicarOverdue()` — converte PENDING para OVERDUE dinamicamente (sem persistir)
+* Status: PENDING | PAID | PARTIAL | OVERDUE | RENEGOTIATED | WAIVED
 
 ### expenses
-* Filtros via query params: `?isPaid=true/false`, `?propertyId=`, `?category=`
+* Filtros via query: `?isPaid=true/false`, `?propertyId=`, `?category=`
 * Categorias: MAINTENANCE/CONDOMINIUM/IPTU/INSURANCE/ADMIN/WATER/ENERGY/OTHER
-* Rota especial: `PATCH /expenses/:id/pay`
+* Campo `isRecoverable` para marcar despesas reembolsáveis pelo inquilino
 
 ### dashboard
-* Retorna: `{ competencyMonth, aReceber, recebido, inadimplencia, ocupacao, despesas, contratosAtivos }`
+* KPIs: a receber, recebido, inadimplência (R$), ocupação (%), despesas do mês, contratos ativos
 
-## Funcionalidades planejadas (backlog)
+## Frontend — Telas existentes
 
-### Cadastro de imóvel
-* Inscrição imobiliária do IPTU (obrigatório) — link para https://campinagrande.pb.gov.br/iptu/
-* Matrícula de água — Cagepa (obrigatório)
-* Matrícula de energia — Energisa (obrigatório)
-* Número da escritura (opcional)
-* Geração de contrato de aluguel em PDF pelo sistema
-* Upload de modelo de contrato personalizado pelo usuário
+| Rota | Descrição |
+|------|-----------|
+| `/dashboard` | KPIs do mês (cards: a receber, recebido, inadimplência, ocupação, despesas, contratos) |
+| `/imoveis` | Grid de imóveis com ícones por tipo e badges de vacância |
+| `/imoveis/novo` | Formulário com CEP automático, multi-unidade para COMPLEX |
+| `/imoveis/[id]` | Detalhe do imóvel com tabela de unidades e leases ativos |
+| `/imoveis/[id]/editar` | Editar imóvel |
+| `/inquilinos` | Lista de inquilinos com badges (em dia/em dívida/inativo) e total devido |
+| `/inquilinos/novo` | Formulário com máscara CPF, telefone, moeda |
+| `/inquilinos/[id]` | Detalhe com contratos e imóveis alugados |
+| `/contratos` | Lista de contratos com filtros (status) e busca |
+| `/contratos/novo` | Formulário com selects em cascata (imóvel → unidades → inquilino) |
+| `/contratos/[id]` | Detalhe: imóvel, inquilino, condições, garantías, ações |
+| `/cobrancas` | Lista de cobranças com abas (todas/pendentes/atrasadas/pagas/parcial) |
+| `/cobrancas/[id]` | Detalhe da cobrança com modal de pagamento |
+| `/despesas` | Lista de despesas com abas (todas/a pagar/pagas) |
+| `/despesas/novo` | Formulário com categoria, valor, data, propriedade |
+| `/despesas/[id]` | Detalhe da despesa |
 
-### Cobranças e pagamentos
-* Ajuste de valor no registro de pagamento (pagamento parcial ou a mais)
-* Recibo personalizado gerado em PDF para cada pagamento
+## Funcionalidades implementadas
 
-### Filtros e busca
-* Busca de imóvel por nome/endereço
-* Filtros na listagem: Ocupados, Não ocupados, Pagos, Em atraso, IPTU pago, IPTU não pago
+### Contratos
+- Listagem com status calculado (Atrasado/Em dia/Pendente/Adiantado) para contratos ACTIVE
+- StatusLease: DRAFT → ACTIVE → TERMINATED/CANCELLED
+- Encerrar contrato com data e motivo
+- Cancelar/excluir contrato com confirmação modal
+- Ajustar valor do aluguel a qualquer momento (modal)
+- Renovar contrato (encerra atual + cria novo com nova vigência)
+- Alerta de reajuste quando faltam ≤30 dias
 
-### Lembretes automáticos (via BullMQ + Redis)
-* Lembrete de vencimento de pagamento
-* Alerta de atraso
-* Alerta de ajuste de aluguel (anual ou conforme configuração do contrato)
+### Cobranças
+- Lista com lógica inteligente: atrasados → mês atual; pago → próximo em aberto
+- Pagamento parcial suportado
+- Crédito para mês seguinte quando pagamento excede valor
+- Isentar cobrança (WAIVED)
+- Registro de pagamento com distribuição automática
 
-### Pendentes
-* Sistema de pastas para agrupar imóveis
-* Geração de PDF (recibo de pagamento e contrato)
-* Filtros e busca de imóveis na listagem
-* Formulários de edição (imóvel, inquilino, contrato)
-* Tela de detalhe do contrato listando receivables gerados
-* Testes E2E para contratos, cobranças e despesas
+### Imóveis
+- CRUD completo
+- Unidade auto-criada ao cadastrar imóvel (exceto tipo COMPLEX)
+- Campos obrigatórios: IPTU, água, energia (obrigatórios — link https://campinagrande.pb.gov.br/iptu/)
+- CEP automático (ViaCEP)
+
+### Inquilinos
+- CRUD completo
+- Campos: fullName, CPF, RG, birthDate, email, phone, employer, monthlyIncome
+
+## Pendente no backlog
+
+### Alto valor (próximos)
+- Autenticação com Clerk (conta multi-usuário, login real)
+- Geração de PDF (recibo de pagamento, contrato)
+- Upload de modelo de contrato personalizado
+- Filtros e busca na listagem de imóveis
+- Tela de manutenção (tickets)
+- Notificações via e-mail/WhatsApp
+
+### Médio valor
+- Sistema de pastas para agrupar imóveis
+- Editar/confirmar pagamento em `/cobrancas/[id]`
+- Renovação automática de contrato (em vez de manual)
+- Dashboard com gráficos históricos
+- Relatório de inadimplência
+
+### Baixo valor / futuro
+- Importação de transações bancárias e conciliação automática
+- Planos (FREE/STARTER/PRO) com limites de imóveis
+- Backup automático do banco
+- Deploy para produção (Supabase como DB)
 
 ## Decisões Arquiteturais
 * **Monólito modular** — não microserviços no MVP
 * **Multi-tenancy lógico** — toda entidade tem `accountId`
-* **Prisma 5.22** — não atualizar para v6+
+* **Prisma 5.22** — nunca atualizar para v6+
 * **`receivables` separado de `payments`** — suporta pagamento parcial
-* **Auth hardcoded** (`account-teste-001`) durante dev — Clerk entra depois
+* **Auth hardcoded** (`account-teste-001`) — Clerk entra depois
 * **Um imóvel pode ter múltiplos inquilinos** via `lease_tenants` (N:N)
 * **Um inquilino pode ter múltiplos imóveis** via `lease_tenants` (N:N)
+* **Data handling UTC puro** — evita bugs de DST

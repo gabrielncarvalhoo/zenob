@@ -30,10 +30,10 @@ Inspirado no Rentila. **NÃO é marketplace** — foco 100% em backoffice.
 | Backend | NestJS + TypeScript | ^10 |
 | ORM | Prisma | 5.22.0 |
 | Banco local | PostgreSQL (Docker) | 16 |
-| Frontend | Next.js + React + TypeScript | (a iniciar) |
-| UI | Tailwind CSS + shadcn/ui | (a iniciar) |
-| Tabelas | TanStack Table v8 | (a iniciar) |
-| Formulários | React Hook Form + Zod | (a iniciar) |
+| Frontend | Next.js + React + TypeScript | 14 |
+| UI | Tailwind CSS + shadcn/ui | ativo |
+| Tabelas | TanStack Table v8 | ativo |
+| Formulários | React Hook Form + Zod | ativo |
 | Filas | Redis + BullMQ | (a iniciar) |
 | Auth | Clerk | (a iniciar) |
 | Storage | Cloudflare R2 | (a iniciar) |
@@ -135,14 +135,57 @@ GET    /properties/:id/units    → listar unidades
 POST   /properties/:id/units    → criar unidade
 ```
 
-### Próximos módulos (🔜 a implementar)
+### Portfólio (✅ implementado)
 ```
-/tenants       → inquilinos
-/leases        → contratos
-/receivables   → cobranças
-/payments      → pagamentos
-/expenses      → despesas
-/dashboard     → KPIs
+GET    /properties              → listar imóveis
+POST   /properties              → criar imóvel
+GET    /properties/:id          → buscar imóvel
+PATCH  /properties/:id          → atualizar imóvel
+GET    /properties/:id/units    → listar unidades
+POST   /properties/:id/units    → criar unidade
+```
+
+### Tenants (✅ implementado)
+```
+GET    /tenants                 → listar inquilinos
+GET    /tenants/:id             → buscar inquilino
+POST   /tenants                 → criar inquilino
+PATCH  /tenants/:id             → atualizar inquilino
+```
+
+### Leasing (✅ implementado)
+```
+GET    /leases                  → listar contratos
+GET    /leases/:id             → buscar contrato
+POST   /leases                  → criar contrato
+PATCH  /leases/:id/status        → atualizar status
+POST   /leases/:id/terminate    → encerrar contrato
+POST   /leases/:id/cancel       → cancelar contrato
+PATCH  /leases/:id/rent-amount  → ajustar valor
+```
+
+### Billing (✅ implementado)
+```
+GET    /receivables             → listar cobranças
+GET    /receivables/:id         → buscar cobrança
+POST   /receivables/:id/payments → registrar pagamento
+PATCH  /receivables/:id/status  → atualizar status
+POST   /receivables/:id/waive   → isentar cobrança
+```
+
+### Expenses (✅ implementado)
+```
+GET    /expenses                → listar despesas
+GET    /expenses/:id            → buscar despesa
+POST   /expenses                → criar despesa
+PATCH  /expenses/:id            → atualizar despesa
+PATCH  /expenses/:id/pay        → marcar como paga
+DELETE /expenses/:id            → excluir despesa
+```
+
+### Dashboard (✅ implementado)
+```
+GET    /dashboard               → KPIs do mês
 ```
 
 ---
@@ -151,22 +194,30 @@ POST   /properties/:id/units    → criar unidade
 
 ### ✅ Concluído
 - Arquitetura e stack decididos
-- Schema do banco com 16 tabelas
+- Schema do banco com 16 tabelas + 20 enums
 - Migration aplicada — banco criado
 - API NestJS rodando na porta 3000
-- Módulo Portfolio com 6 rotas funcionando
-- Primeiro imóvel cadastrado via API
+- 6 módulos backend funcionando (dashboard, portfolio, tenants, leasing, billing, expenses)
+- Frontend Next.js com 22 páginas e formulários React Hook Form + Zod
+- Módulos frontend: dashboard, imóveis, inquilinos, contratos, cobranças, despesas
+- Geração automática de receivables ao ativar contrato
+- Pagamento parcial e distribuição automática de crédito
+- Status de contrato calculado (Atrasado/Em dia/Pendente/Adiantado)
+- Ajuste de aluguel e cancelamento de contratos
+- Renovar contrato com nova vigência
+- Recibo de pagamento com resumo (valor pago, crédito gerado, saldo restante)
+- Autenticação hardcoded (account-teste-001) até Clerk
 - Repositório no GitHub: `gabrielncarvalhoo/zenob`
 
-### 🔜 Próximos passos (ordem recomendada)
-1. Módulo Tenants (inquilinos)
-2. Módulo Leasing (contratos)
-3. Módulo Billing (cobranças e recebimentos)
-4. Módulo Expenses (despesas)
-5. Dashboard com KPIs
-6. Iniciar frontend Next.js
-7. Autenticação com Clerk
-8. Deploy — migrar banco para Supabase
+### 🔜 Próximos passos (backlog)
+1. Autenticação com Clerk (multi-usuário real)
+2. Geração de PDF (recibo de pagamento, contrato de aluguel)
+3. Upload de modelo de contrato personalizado
+4. Sistema de notificações (e-mail/WhatsApp)
+5. Importação e conciliação bancária
+6. Tela de manutenção (tickets)
+7. Dashboard com gráficos históricos
+8. Deploy para produção (Supabase como DB)
 
 ---
 

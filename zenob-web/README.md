@@ -1,36 +1,69 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Zenob Web — Frontend
 
-## Getting Started
+Frontend do Zenob (SaaS de administração de aluguéis).
 
-First, run the development server:
+## Stack
+- Next.js 14 (App Router)
+- Tailwind CSS + shadcn/ui
+- TanStack Table v8
+- React Hook Form + Zod
+- Lucide React (ícones)
+
+## Como rodar
 
 ```bash
+cd zenob-web
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+O frontend roda em `http://localhost:3000` (ou 3001/3002 se ocupado — Next.js tenta portas automaticamente).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+A API backend precisa estar rodando em `http://localhost:3000/api/v1`.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Telas disponíveis
 
-## Learn More
+| Rota | Descrição |
+|------|-----------|
+| `/dashboard` | KPIs do mês |
+| `/imoveis` | Grid de imóveis |
+| `/imoveis/novo` | Cadastrar imóvel |
+| `/imoveis/[id]` | Detalhe do imóvel |
+| `/imoveis/[id]/editar` | Editar imóvel |
+| `/inquilinos` | Lista de inquilinos |
+| `/inquilinos/novo` | Cadastrar inquilino |
+| `/inquilinos/[id]` | Detalhe do inquilino |
+| `/contratos` | Lista de contratos |
+| `/contratos/novo` | Novo contrato |
+| `/contratos/[id]` | Detalhe do contrato |
+| `/cobrancas` | Lista de cobranças |
+| `/cobrancas/[id]` | Detalhe da cobrança |
+| `/despesas` | Lista de despesas |
+| `/despesas/novo` | Nova despesa |
+| `/despesas/[id]` | Detalhe da despesa |
 
-To learn more about Next.js, take a look at the following resources:
+## Testes E2E
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Playwright configurado em `tests/`:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+cd zenob-web
+npx playwright test
+```
 
-## Deploy on Vercel
+## Estrutura
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+src/
+├── app/               # Next.js App Router (pages)
+│   ├── dashboard/
+│   ├── imoveis/
+│   ├── inquilinos/
+│   ├── contratos/
+│   ├── cobrancas/
+│   └── despesas/
+├── components/
+│   └── layout/        # AppLayout, PageHeader
+└── lib/
+    └── utils.ts       # cn() utility
+```

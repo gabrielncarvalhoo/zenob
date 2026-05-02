@@ -64,10 +64,13 @@ Warning: #BA7517 / bg: #FAEEDA | Error: #E24B4A / bg: #FCEBEB
 - After schema changes, regenerate before running backend
 
 ## Important Enums
-`LeaseStatus`: DRAFT | ACTIVE | EXPIRED | TERMINATED
+`LeaseStatus`: DRAFT | ACTIVE | EXPIRED | TERMINATED | CANCELLED
 `ReceivableStatus`: PENDING | PAID | PARTIAL | OVERDUE | RENEGOTIATED | WAIVED
 `ExpenseCategory`: MAINTENANCE | CONDOMINIUM | IPTU | INSURANCE | ADMIN | WATER | ENERGY | OTHER
 `AdjustmentIndex`: IGP_M | IPCA | INPC | FIXED
+`GuaranteeType`: DEPOSIT | SURETY | INSURANCE | NONE
+`LateFeeType`: PERCENT | FIXED
+`InterestType`: DAILY | MONTHLY
 
 ## Frontend Scripts
 ```bash
@@ -78,5 +81,9 @@ npm run lint    # ESLint
 ```
 No `test` or `typecheck` scripts configured in zenob-web.
 
-## No CI/CD configured
-No GitHub Actions, no pre-commit hooks, no automated tests. Verify manually.
+## Testes E2E
+Playwright configurado em `zenob-web/tests/`.
+Rodar: `cd zenob-web && npx playwright test`
+
+## No CI/CD configurado
+Verificar manualmente antes de merger.
