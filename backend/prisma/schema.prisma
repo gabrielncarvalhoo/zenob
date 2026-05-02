@@ -69,6 +69,7 @@ enum LeaseStatus {
   ACTIVE     // ativo
   EXPIRED    // vencido sem rescisão formal
   TERMINATED // rescindido
+  CANCELLED  // cancelado/excluído
 }
 
 enum TenantRole {

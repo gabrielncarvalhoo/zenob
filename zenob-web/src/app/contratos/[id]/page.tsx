@@ -21,7 +21,7 @@ interface LeaseContract {
   lateFeeValue: number | string;
   interestType: string;
   interestValue: number | string;
-  status: 'DRAFT' | 'ACTIVE' | 'EXPIRED' | 'TERMINATED';
+  status: 'DRAFT' | 'ACTIVE' | 'EXPIRED' | 'TERMINATED' | 'CANCELLED';
   notes: string | null;
   terminationDate: string | null;
   nextAdjustmentDate?: string;

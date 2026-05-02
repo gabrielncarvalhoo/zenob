@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, RefreshCw, XCircle, PlayCircle } from 'lucide-react';
+import { Loader2, RefreshCw, XCircle, PlayCircle, Trash2, Edit3 } from 'lucide-react';
 
 interface LeaseData {
   unitId: string;
@@ -23,7 +23,7 @@ interface LeaseData {
 
 interface ContractActionsProps {
   leaseId: string;
-  status: 'DRAFT' | 'ACTIVE' | 'EXPIRED' | 'TERMINATED';
+  status: 'DRAFT' | 'ACTIVE' | 'EXPIRED' | 'TERMINATED' | 'CANCELLED';
   daysUntilEnd: number;
   leaseData: LeaseData;
 }
@@ -40,6 +40,9 @@ export function ContractActions({ leaseId, status, daysUntilEnd, leaseData }: Co
   const [showTerminateModal, setShowTerminateModal] = useState(false);
   const [showActivateModal, setShowActivateModal] = useState(false);
   const [showRenewModal, setShowRenewModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showRentModal, setShowRentModal] = useState(false);
+  const [newRentAmountInput, setNewRentAmountInput] = useState(String(leaseData.rentAmount));
 
   // O novo contrato começa no dia seguinte ao término atual
   const newStartDate = toISODate(new Date(new Date(leaseData.endDate).getTime() + 86_400_000));
@@ -128,7 +131,58 @@ export function ContractActions({ leaseId, status, daysUntilEnd, leaseData }: Co
     }
   };
 
-  if (status !== 'ACTIVE' && status !== 'DRAFT') return null;
+  const handleDelete = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`http://localhost:3000/api/v1/leases/${leaseId}/cancel`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-account-id': 'account-teste-001',
+        },
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.message || 'Falha ao excluir contrato');
+      }
+      router.push('/contratos');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro interno');
+    } finally {
+      setLoading(false);
+      setShowDeleteModal(false);
+    }
+  };
+
+  const handleRentAdjustment = async () => {
+    const amount = Number(newRentAmountInput);
+    if (isNaN(amount) || amount <= 0) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`http://localhost:3000/api/v1/leases/${leaseId}/rent-amount`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-account-id': 'account-teste-001',
+        },
+        body: JSON.stringify({ rentAmount: amount }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.message || 'Falha ao ajustar valor');
+      }
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro interno');
+    } finally {
+      setLoading(false);
+      setShowRentModal(false);
+    }
+  };
+
+  if (status !== 'ACTIVE' && status !== 'DRAFT' && status !== 'TERMINATED' && status !== 'CANCELLED') return null;
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-8">
@@ -163,13 +217,33 @@ export function ContractActions({ leaseId, status, daysUntilEnd, leaseData }: Co
             </button>
           )}
           {status === 'ACTIVE' && (
+            <>
+              <button
+                disabled={loading}
+                onClick={() => { setNewRentAmountInput(String(leaseData.rentAmount)); setShowRentModal(true); }}
+                className="inline-flex items-center gap-2 bg-[#378ADD] hover:bg-[#2A6DB8] text-white px-4 py-2 rounded-md font-medium text-sm transition-colors disabled:opacity-70"
+              >
+                <Edit3 className="w-4 h-4" />
+                Ajustar aluguel
+              </button>
+              <button
+                disabled={loading}
+                onClick={() => setShowTerminateModal(true)}
+                className="inline-flex items-center gap-2 bg-white border border-[#E24B4A] text-[#E24B4A] hover:bg-[#FCEBEB] px-4 py-2 rounded-md font-medium text-sm transition-colors disabled:opacity-70"
+              >
+                <XCircle className="w-4 h-4" />
+                Encerrar contrato
+              </button>
+            </>
+          )}
+          {(status === 'DRAFT' || status === 'CANCELLED' || status === 'TERMINATED') && (
             <button
               disabled={loading}
-              onClick={() => setShowTerminateModal(true)}
+              onClick={() => setShowDeleteModal(true)}
               className="inline-flex items-center gap-2 bg-white border border-[#E24B4A] text-[#E24B4A] hover:bg-[#FCEBEB] px-4 py-2 rounded-md font-medium text-sm transition-colors disabled:opacity-70"
             >
-              <XCircle className="w-4 h-4" />
-              Encerrar contrato
+              <Trash2 className="w-4 h-4" />
+              Excluir contrato
             </button>
           )}
         </div>
@@ -198,6 +272,75 @@ export function ContractActions({ leaseId, status, daysUntilEnd, leaseData }: Co
                 className="px-4 py-2 bg-[#E24B4A] hover:bg-[#C93A39] text-white rounded-md text-sm font-medium transition-colors flex items-center justify-center min-w-[100px]"
               >
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Encerrar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Excluir */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+          <div className="bg-white rounded-xl shadow-lg w-full max-w-sm p-6">
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Excluir contrato?</h3>
+            <p className="text-gray-600 mb-6 text-sm">
+              O contrato será cancelado. Esta ação não pode ser desfeita. Cobranças existentes permanecem no sistema.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                disabled={loading}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={loading}
+                className="px-4 py-2 bg-[#E24B4A] hover:bg-[#C93A39] text-white rounded-md text-sm font-medium transition-colors flex items-center justify-center min-w-[100px]"
+              >
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Excluir'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Ajustar Aluguel */}
+      {showRentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+          <div className="bg-white rounded-xl shadow-lg w-full max-w-sm p-6">
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Ajustar valor do aluguel</h3>
+            <p className="text-gray-600 mb-6 text-sm">
+              O novo valor será atualizado imediatamente no contrato. Cobranças futuras usarão este valor.
+            </p>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Novo valor do aluguel (R$)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={newRentAmountInput}
+                onChange={(e) => setNewRentAmountInput(e.target.value)}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#3B6D11] focus:border-[#3B6D11]"
+              />
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowRentModal(false)}
+                disabled={loading}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleRentAdjustment}
+                disabled={loading || Number(newRentAmountInput) <= 0}
+                className="px-4 py-2 bg-[#378ADD] hover:bg-[#2A6DB8] text-white rounded-md text-sm font-medium transition-colors flex items-center justify-center min-w-[100px]"
+              >
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirmar'}
               </button>
             </div>
           </div>

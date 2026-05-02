@@ -37,4 +37,16 @@ export class LeasingController {
     const accountId = 'account-teste-001';
     return this.leasingService.terminateContract(id, accountId, body);
   }
+
+  @Post(':id/cancel')
+  cancel(@Param('id') id: string) {
+    const accountId = 'account-teste-001';
+    return this.leasingService.cancelContract(id, accountId);
+  }
+
+  @Patch(':id/rent-amount')
+  adjustRentAmount(@Param('id') id: string, @Body('rentAmount') rentAmount: string) {
+    const accountId = 'account-teste-001';
+    return this.leasingService.adjustRentAmount(id, accountId, rentAmount);
+  }
 }

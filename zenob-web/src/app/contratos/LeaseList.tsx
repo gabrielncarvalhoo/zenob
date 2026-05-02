@@ -4,6 +4,11 @@ import Link from 'next/link';
 import { useState, useMemo } from 'react';
 import { AlertTriangle } from 'lucide-react';
 
+interface Receivable {
+  status: string;
+  dueDate: string;
+}
+
 interface LeaseContract {
   id: string;
   unitId: string;
@@ -16,7 +21,7 @@ interface LeaseContract {
   adjustmentIndex: 'IGP_M' | 'IPCA' | 'INPC' | 'FIXED';
   adjustmentFrequencyMonths: number;
   guaranteeType: 'DEPOSIT' | 'SURETY' | 'INSURANCE' | 'NONE';
-  status: 'DRAFT' | 'ACTIVE' | 'EXPIRED' | 'TERMINATED';
+  status: 'DRAFT' | 'ACTIVE' | 'EXPIRED' | 'TERMINATED' | 'CANCELLED';
   notes: string | null;
   terminationDate: string | null;
   nextAdjustmentDate?: string;
@@ -30,10 +35,23 @@ interface LeaseContract {
       fullName: string;
     };
   }>;
+  receivables?: Receivable[];
 }
 
 interface LeaseListProps {
   initialLeases: LeaseContract[];
+}
+
+async function getReceivablesForLease(leaseId: string): Promise<Receivable[]> {
+  try {
+    const res = await fetch(`http://localhost:3000/api/v1/receivables?leaseId=${leaseId}`, {
+      cache: 'no-store',
+    });
+    if (!res.ok) return [];
+    return res.json();
+  } catch {
+    return [];
+  }
 }
 
 function getStatusBadge(status: LeaseContract['status']) {
@@ -46,9 +64,59 @@ function getStatusBadge(status: LeaseContract['status']) {
       return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#FAEEDA] text-[#633806]">Vencido</span>;
     case 'TERMINATED':
       return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#FCEBEB] text-[#791F1F]">Rescindido</span>;
+    case 'CANCELLED':
+      return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#F3F4F6] text-[#9CA3AF]">Cancelado</span>;
     default:
       return null;
   }
+}
+
+function computeContractStatus(lease: LeaseContract): { label: string; color: string; bg: string } | null {
+  if (lease.status !== 'ACTIVE') return null;
+
+  const now = new Date();
+  const currentMonth = now.getUTCMonth();
+  const currentYear = now.getUTCFullYear();
+  const currentMonthStart = new Date(Date.UTC(currentYear, currentMonth, 1)).getTime();
+  const nextMonthStart = new Date(Date.UTC(currentYear, currentMonth + 1, 1)).getTime();
+
+  const receivables = lease.receivables || [];
+  const hasOverdue = receivables.some(r =>
+    r.status === 'OVERDUE' || (r.status === 'PENDING' && new Date(r.dueDate).getTime() < currentMonthStart)
+  );
+  const hasPartial = receivables.some(r => r.status === 'PARTIAL');
+  const hasPendingCurrentMonth = receivables.some(r => {
+    if (r.status !== 'PENDING' && r.status !== 'PARTIAL') return false;
+    const due = new Date(r.dueDate);
+    return due.getUTCFullYear() === currentYear && due.getUTCMonth() === currentMonth;
+  });
+  const hasPendingNextMonth = receivables.some(r => {
+    if (r.status !== 'PENDING' && r.status !== 'PARTIAL') return false;
+    const due = new Date(r.dueDate);
+    return due.getUTCFullYear() === currentYear && due.getUTCMonth() === currentMonth + 1;
+  });
+
+  // Se há OVERDUE: contrato está "Atrasado"
+  if (hasOverdue) {
+    return { label: 'Atrasado', color: '#E24B4A', bg: '#FCEBEB' };
+  }
+  // Se o mês atual tem PENDING/PARTIAL: "Pendente"
+  if (hasPendingCurrentMonth || hasPartial) {
+    return { label: 'Pendente', color: '#BA7517', bg: '#FAEEDA' };
+  }
+  // Se o próximo mês já está pago (adiantado)
+  if (hasPendingNextMonth === false && receivables.length > 0) {
+    // Verifica se próximo mês existe e está pago
+    const nextMonthRec = receivables.find(r => {
+      const due = new Date(r.dueDate);
+      return due.getUTCFullYear() === currentYear && due.getUTCMonth() === currentMonth + 1;
+    });
+    if (nextMonthRec && nextMonthRec.status === 'PAID') {
+      return { label: 'Adiantado', color: '#3B6D11', bg: '#EAF3DE' };
+    }
+  }
+  // Mês atual Pago: "Em dia"
+  return { label: 'Em dia', color: '#3B6D11', bg: '#EAF3DE' };
 }
 
 function formatDate(dateString: string) {
@@ -147,6 +215,7 @@ export function LeaseList({ initialLeases }: LeaseListProps) {
             <option value="DRAFT">Rascunho</option>
             <option value="EXPIRED">Vencido</option>
             <option value="TERMINATED">Rescindido</option>
+            <option value="CANCELLED">Cancelado</option>
           </select>
 
           <select
@@ -193,7 +262,20 @@ export function LeaseList({ initialLeases }: LeaseListProps) {
                       className="grid grid-cols-[1fr_1.5fr_1.5fr_1.5fr_1fr_1fr_1fr] hover:bg-gray-50 transition-colors items-center group cursor-pointer"
                     >
                       <div className="px-6 py-4 whitespace-nowrap">
-                        {getStatusBadge(lease.status)}
+                        {(() => {
+                          const computed = computeContractStatus(lease);
+                          if (computed) {
+                            return (
+                              <span
+                                className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                                style={{ backgroundColor: computed.bg, color: computed.color }}
+                              >
+                                {computed.label}
+                              </span>
+                            );
+                          }
+                          return getStatusBadge(lease.status);
+                        })()}
                       </div>
                       <div className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 group-hover:text-[#3B6D11] transition-colors truncate flex items-center gap-2">
                         {lease.unit?.property?.name || '-'}

@@ -27,7 +27,16 @@ export class LeasingService {
           include: {
             tenant: { select: { id: true, fullName: true, email: true, phone: true } }
           }
-        }
+        },
+        receivables: {
+          select: {
+            id: true,
+            status: true,
+            dueDate: true,
+            balanceAmount: true,
+            paidAmount: true,
+          }
+        },
       }
     });
   }
@@ -161,6 +170,20 @@ export class LeasingService {
         terminationDate: terminationData.terminationDate || new Date(),
         terminationReason: terminationData.terminationReason,
       },
+    });
+  }
+
+  async cancelContract(id: string, accountId: string) {
+    return prisma.leaseContract.update({
+      where: { id },
+      data: { status: 'CANCELLED' as any },
+    });
+  }
+
+  async adjustRentAmount(id: string, accountId: string, newRentAmount: string) {
+    return prisma.leaseContract.update({
+      where: { id },
+      data: { rentAmount: newRentAmount },
     });
   }
 
