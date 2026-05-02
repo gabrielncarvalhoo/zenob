@@ -27,4 +27,12 @@ export class IptuController {
   ) {
     return this.iptuService.confirmPayment(propertyId, accountId);
   }
+
+  @Post('verify/:propertyId')
+  async verify(
+    @Param('propertyId') propertyId: string,
+    @Headers('x-account-id') accountId: string,
+  ) {
+    return this.iptuService.verifyProperty(propertyId, accountId);
+  }
 }

@@ -247,7 +247,6 @@ export class LeasingService {
         rentAmount: renewalData.rentAmount ?? existing.rentAmount.toString(),
         depositAmount: existing.depositAmount,
         adjustmentIndex: (renewalData.adjustmentIndex as any) ?? existing.adjustmentIndex,
-        adjustmentFrequencyMonths: existing.adjustmentFrequencyMonths,
         lateFeeType: existing.lateFeeType,
         lateFeeValue: renewalData.lateFeeValue ?? existing.lateFeeValue.toString(),
         interestType: existing.interestType,

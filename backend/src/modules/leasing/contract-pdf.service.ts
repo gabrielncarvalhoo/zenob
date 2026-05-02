@@ -223,7 +223,6 @@ export class ContractPdfService {
       guaranteeType: lease.guaranteeType,
       guaranteeDescription: this.getGuaranteeDescription(lease.guaranteeType),
       adjustmentIndex: lease.adjustmentIndex,
-      adjustmentFrequency: lease.adjustmentFrequencyMonths,
       lateFeeType: lease.lateFeeType,
       lateFeeValue: Number(lease.lateFeeValue.toString()),
       interestType: lease.interestType,
@@ -265,7 +264,7 @@ export class ContractPdfService {
       : '';
 
     const adjustmentClause = data.adjustmentIndex !== 'NONE'
-      ? `<p style="margin-bottom: 8px;"><strong>REAJUSTE:</strong> O aluguel será reajustado ${data.adjustmentFrequency}x ao ano pelo índice ${data.adjustmentIndex}.</p>`
+      ? `<p style="margin-bottom: 8px;"><strong>REAJUSTE:</strong> O aluguel será reajustado anualmente pelo índice ${data.adjustmentIndex}.</p>`
       : '';
 
     return `<!DOCTYPE html>
@@ -340,7 +339,7 @@ export class ContractPdfService {
         <tr><td>Valor do aluguel</td><td>R$ ${formatCurrency(data.rentAmount)}</td></tr>
         <tr><td>Dia do vencimento</td><td>Dia ${data.dueDay} de cada mês</td></tr>
         <tr><td>Depósito de garantia</td><td>R$ ${formatCurrency(data.depositAmount)}</td></tr>
-        ${data.adjustmentIndex !== 'NONE' ? `<tr><td>Índice de reajuste</td><td>${data.adjustmentIndex} — a cada ${data.adjustmentFrequency}x ao ano</td></tr>` : ''}
+        ${data.adjustmentIndex !== 'NONE' ? `<tr><td>Índice de reajuste</td><td>${data.adjustmentIndex}</td></tr>` : ''}
       </table>
       ${adjustmentClause}
     </div>

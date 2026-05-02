@@ -17,7 +17,6 @@ const leaseSchema = z.object({
   rentAmount: z.coerce.number().min(0.01, 'Valor do aluguel é obrigatório'),
   depositAmount: z.coerce.number().optional(),
   adjustmentIndex: z.enum(['IGP_M', 'IPCA', 'INPC', 'FIXED']),
-  adjustmentFrequencyMonths: z.coerce.number().min(1, 'Mínimo de 1 mês'),
   guaranteeType: z.enum(['DEPOSIT', 'SURETY', 'INSURANCE', 'NONE']),
   notes: z.string().optional(),
 });
@@ -62,7 +61,6 @@ export default function NovoContratoPage() {
     resolver: zodResolver(leaseSchema) as any,
     defaultValues: {
       adjustmentIndex: 'IGP_M',
-      adjustmentFrequencyMonths: 12,
       guaranteeType: 'NONE',
     }
   });
@@ -184,7 +182,6 @@ export default function NovoContratoPage() {
         rentAmount: data.rentAmount,
         depositAmount: data.depositAmount,
         adjustmentIndex: data.adjustmentIndex,
-        adjustmentFrequencyMonths: data.adjustmentFrequencyMonths,
         guaranteeType: data.guaranteeType,
         status: 'ACTIVE',
         notes: data.notes || undefined,
@@ -415,19 +412,6 @@ export default function NovoContratoPage() {
                   <option value="FIXED">Sem reajuste</option>
                 </select>
                 {errors.adjustmentIndex && <p className="text-[#E24B4A] text-xs mt-1">{errors.adjustmentIndex.message}</p>}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Frequência de reajuste (meses) <span className="text-[#E24B4A]">*</span>
-                </label>
-                <input 
-                  {...register('adjustmentFrequencyMonths', { valueAsNumber: true })} 
-                  type="number" 
-                  min="1"
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#3B6D11] focus:border-[#3B6D11]" 
-                />
-                {errors.adjustmentFrequencyMonths && <p className="text-[#E24B4A] text-xs mt-1">{errors.adjustmentFrequencyMonths.message}</p>}
               </div>
             </div>
           </section>

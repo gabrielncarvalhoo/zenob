@@ -21,44 +21,80 @@ export class IptuService {
       return { status: 'NOT_FOUND', rawMessage: 'Código IPTU não informado', checkedAt: new Date() };
     }
 
-    const checkUrl = `https://ecidadeonline.campinagrande.pb.gov.br/digitamatricula.php?inscricao=${encodeURIComponent(iptuCode.trim())}`;
+    const checkUrl = 'https://ecidadeonline.campinagrande.pb.gov.br/digitamatricula.php';
 
     try {
+      // Site exige POST com matricula no body (form urlencoded)
       const response = await fetch(checkUrl, {
-        method: 'GET',
+        method: 'POST',
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
           'Accept': 'text/html,application/xhtml+xml',
           'Accept-Language': 'pt-BR,pt;q=0.9',
+          'Content-Type': 'application/x-www-form-urlencoded',
         },
+        body: `matricula=${encodeURIComponent(iptuCode.trim())}`,
       });
 
       if (!response.ok) {
-        return { status: 'UNKNOWN', rawMessage: `HTTP ${response.status}`, checkedAt: new Date() };
+        return { status: 'NOT_FOUND', rawMessage: `HTTP ${response.status}`, checkedAt: new Date() };
       }
 
-      const html = await response.text();
+      // Decodifica HTML entities mais comuns para detectar string com acentos
+      const raw = await response.text();
+      const html = raw
+        .replace(/&eacute;/g, 'é')
+        .replace(/&iacute;/g, 'í')
+        .replace(/&aacute;/g, 'á')
+        .replace(/&oacute;/g, 'ó')
+        .replace(/&uacute;/g, 'ú')
+        .replace(/&atilde;/g, 'ã')
+        .replace(/&ccedil;/g, 'ç');
 
-      // Mensagem exata de quando IPTU está pago (sem débitos)
-      // Formato: "Nenhum débito pendente encontrado para a matrícula X"
-      if (html.includes('Nenhum débito pendente encontrado') ||
-          html.includes('Nenhum débito pendente encontrado')) {
+      // Matrícula inexistente
+      if (html.includes('Matrícula não encontrada') ||
+          html.includes('Matrícula inválida') ||
+          html.includes('matrícula não cadastrada')) {
+        return { status: 'NOT_FOUND', rawMessage: 'Matrícula não encontrada', checkedAt: new Date() };
+      }
+
+      // String oficial de quitação
+      if (html.includes('Nenhum débito pendente encontrado')) {
         return { status: 'PAID', rawMessage: 'Nenhum débito pendente encontrado', checkedAt: new Date() };
       }
 
-      // Procurar indicators de débitos pendentes
-      // A página mostra "Parcelas do exercício Y já disponíveis" quando há parcelas
-      // Também pode ter elementos com valor total > 0
-      if ((html.includes('Parcelas do exerc') || html.includes('débito') || html.includes('débito')) &&
-          (html.includes('valor') || html.includes('R$'))) {
-        return { status: 'PENDING', rawMessage: 'Débito encontrado (parcelas pendentes)', checkedAt: new Date() };
-      }
-
-      // Se carregou mas não encontrou mensagem clara
-      return { status: 'UNKNOWN', rawMessage: 'Página carregada mas mensagem não reconhecida', checkedAt: new Date() };
+      // Caso contrário considera pendente
+      return { status: 'PENDING', rawMessage: 'Débito pendente', checkedAt: new Date() };
     } catch (error) {
-      return { status: 'UNKNOWN', rawMessage: `Erro: ${error}`, checkedAt: new Date() };
+      return { status: 'NOT_FOUND', rawMessage: `Erro de acesso: ${error}`, checkedAt: new Date() };
     }
+  }
+
+  // Verifica IPTU de um imóvel específico e atualiza status
+  async verifyProperty(propertyId: string, accountId: string) {
+    const property = await prisma.property.findFirst({
+      where: { id: propertyId, accountId },
+    });
+    if (!property) {
+      return { error: 'Imóvel não encontrado', iptuStatus: null };
+    }
+    if (!property.iptuCode) {
+      return { error: 'Imóvel sem código IPTU', iptuStatus: 'NOT_FOUND' };
+    }
+
+    const result = await this.checkIptuStatus(property.iptuCode);
+    await prisma.property.update({
+      where: { id: propertyId },
+      data: { iptuStatus: result.status, iptuLastChecked: result.checkedAt },
+    });
+
+    return {
+      propertyId,
+      iptuCode: property.iptuCode,
+      iptuStatus: result.status,
+      rawMessage: result.rawMessage,
+      checkedAt: result.checkedAt,
+    };
   }
 
   // Update property IPTU status

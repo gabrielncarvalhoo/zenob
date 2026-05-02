@@ -15,7 +15,6 @@ interface LeaseContract {
   rentAmount: number | string;
   depositAmount: number | string | null;
   adjustmentIndex: 'IGP_M' | 'IPCA' | 'INPC' | 'FIXED';
-  adjustmentFrequencyMonths: number;
   guaranteeType: 'DEPOSIT' | 'SURETY' | 'INSURANCE' | 'NONE';
   lateFeeType: string;
   lateFeeValue: number | string;
@@ -139,12 +138,13 @@ function getDaysUntil(dateString: string) {
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 }
 
-function calculateNextAdjustment(startDate: string, freqMonths: number) {
+// Reajuste anual a partir do início do contrato
+function calculateNextAdjustment(startDate: string) {
   const start = new Date(startDate);
   const now = new Date();
   const next = new Date(start);
   while (next <= now) {
-    next.setMonth(next.getMonth() + freqMonths);
+    next.setFullYear(next.getFullYear() + 1);
   }
   return next.toISOString();
 }
@@ -159,7 +159,7 @@ export default async function DetalheContratoPage({ params }: { params: { id: st
     notFound();
   }
 
-  const adjDate = lease.nextAdjustmentDate || calculateNextAdjustment(lease.startDate, lease.adjustmentFrequencyMonths);
+  const adjDate = lease.nextAdjustmentDate || calculateNextAdjustment(lease.startDate);
   const daysToAdj = getDaysUntil(adjDate);
   const needsAdjustmentAlert = daysToAdj >= 0 && daysToAdj <= 30 && lease.status === 'ACTIVE';
   const daysUntilEnd = getDaysUntil(lease.endDate);
@@ -349,11 +349,6 @@ export default async function DetalheContratoPage({ params }: { params: { id: st
               <span className="text-sm font-medium text-gray-500 block mb-1">Índice de reajuste</span>
               <span className="text-base text-gray-900 font-medium">{translateAdjustmentIndex(lease.adjustmentIndex)}</span>
             </div>
-
-            <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
-              <span className="text-sm font-medium text-gray-500 block mb-1">Frequência de reajuste</span>
-              <span className="text-base text-gray-900 font-medium">{lease.adjustmentFrequencyMonths} meses</span>
-            </div>
           </div>
 
           <h2 className="text-lg font-semibold text-gray-900 mb-6 border-b border-gray-100 pb-2">Garantia & Depósito</h2>
@@ -423,7 +418,6 @@ export default async function DetalheContratoPage({ params }: { params: { id: st
           dueDay: lease.dueDay,
           depositAmount: lease.depositAmount,
           adjustmentIndex: lease.adjustmentIndex,
-          adjustmentFrequencyMonths: lease.adjustmentFrequencyMonths,
           guaranteeType: lease.guaranteeType,
           lateFeeType: lease.lateFeeType,
           lateFeeValue: lease.lateFeeValue,

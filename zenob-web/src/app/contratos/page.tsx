@@ -11,7 +11,6 @@ interface LeaseContract {
   rentAmount: number;
   depositAmount: number | null;
   adjustmentIndex: 'IGP_M' | 'IPCA' | 'INPC' | 'FIXED';
-  adjustmentFrequencyMonths: number;
   guaranteeType: 'DEPOSIT' | 'SURETY' | 'INSURANCE' | 'NONE';
   status: 'DRAFT' | 'ACTIVE' | 'EXPIRED' | 'TERMINATED';
   notes: string | null;

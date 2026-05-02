@@ -78,52 +78,61 @@ function monthKey(dateStr: string) {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
-// Aplica regras de exibição combinadas:
-// 1. Há OVERDUE → todos atrasados + mês atual (se existir)
-// 2. Mês atual PAID → avança até primeiro mês não-pago
-// 3. Sempre tenta retornar pelo menos 1 mês em aberto
-// Resultado ordenado por dueDate DESC.
+// Regras de exibição:
+// 1. Há atrasados (OVERDUE OU PARTIAL anterior ao mês atual) → mostra todos + mês atual + 1 futuro em aberto
+// 2. Mês atual PAID → avança até primeiro não-pago + 1 futuro adicional
+// 3. Sempre inclui ao menos 1 mês futuro em aberto (pagamento adiantado)
+// 4. Ordena por dueDate ASC (mais antigo primeiro)
 export function selectReceivablesToShow(data: Receivable[]): Receivable[] {
   if (data.length === 0) return [];
 
   const now = new Date();
   const currentKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
 
-  const overdues = data.filter((r) => r.status === "OVERDUE");
+  const fechado = (s: Receivable["status"]) =>
+    s === "PAID" || s === "WAIVED" || s === "RENEGOTIATED";
 
-  let result: Receivable[] = [];
+  // Atrasado = OVERDUE OU (PARTIAL com mês anterior ao atual)
+  const atrasado = (r: Receivable) => {
+    if (r.status === "OVERDUE") return true;
+    if (r.status === "PARTIAL" && monthKey(r.dueDate) < currentKey) return true;
+    return false;
+  };
 
-  if (overdues.length > 0) {
-    // Regra 1: todos os atrasados + mês atual (qualquer status que não seja OVERDUE já listado)
-    result = [...overdues];
-    const currentMonthRec = data.find(
-      (r) => monthKey(r.dueDate) === currentKey && r.status !== "OVERDUE",
-    );
-    if (currentMonthRec) result.push(currentMonthRec);
-  } else {
-    // Regras 2-4: encontra o primeiro mês ≥ atual que NÃO está fechado
-    const sortedAsc = [...data].sort(
-      (a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime(),
-    );
-    const fechado = (s: Receivable["status"]) =>
-      s === "PAID" || s === "WAIVED" || s === "RENEGOTIATED";
+  const sortedAsc = [...data].sort(
+    (a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime(),
+  );
 
-    const firstOpenFromNow = sortedAsc.find(
-      (r) => monthKey(r.dueDate) >= currentKey && !fechado(r.status),
-    );
+  const ids = new Set<string>();
+  const result: Receivable[] = [];
+  const push = (r: Receivable | undefined) => {
+    if (!r || ids.has(r.id)) return;
+    ids.add(r.id);
+    result.push(r);
+  };
 
-    if (firstOpenFromNow) {
-      result = [firstOpenFromNow];
-    } else {
-      // Regra 5: tudo pago. Mostra o último PAID como referência (UI vazia se não houver)
-      const lastPaid = [...data]
-        .filter((r) => r.status === "PAID")
-        .sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime())[0];
-      if (lastPaid) result = [lastPaid];
-    }
+  // 1) Todos os atrasados
+  sortedAsc.filter(atrasado).forEach(push);
+
+  // 2) Mês atual (qualquer status — útil ver mesmo se já PAID)
+  const atual = data.find((r) => monthKey(r.dueDate) === currentKey);
+  push(atual);
+
+  // 3) Primeiro mês > atual em aberto (para pagamento adiantado)
+  const proximoAberto = sortedAsc.find(
+    (r) => monthKey(r.dueDate) > currentKey && !fechado(r.status),
+  );
+  push(proximoAberto);
+
+  // 4) Se nada incluído ainda, fallback: último PAID como referência
+  if (result.length === 0) {
+    const lastPaid = [...data]
+      .filter((r) => r.status === "PAID")
+      .sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime())[0];
+    if (lastPaid) result.push(lastPaid);
   }
 
-  result.sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
+  result.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
   return result;
 }
 

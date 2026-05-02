@@ -12,7 +12,6 @@ interface LeaseData {
   dueDay: number;
   depositAmount: number | string | null;
   adjustmentIndex: string;
-  adjustmentFrequencyMonths: number;
   guaranteeType: string;
   lateFeeType: string;
   lateFeeValue: number | string;

@@ -19,7 +19,6 @@ interface LeaseContract {
   rentAmount: number;
   depositAmount: number | null;
   adjustmentIndex: 'IGP_M' | 'IPCA' | 'INPC' | 'FIXED';
-  adjustmentFrequencyMonths: number;
   guaranteeType: 'DEPOSIT' | 'SURETY' | 'INSURANCE' | 'NONE';
   status: 'DRAFT' | 'ACTIVE' | 'EXPIRED' | 'TERMINATED' | 'CANCELLED';
   notes: string | null;
@@ -140,12 +139,13 @@ function getDaysUntil(dateString: string) {
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 }
 
-function calculateNextAdjustment(startDate: string, freqMonths: number) {
+// Reajuste anual a partir do início do contrato
+function calculateNextAdjustment(startDate: string) {
   const start = new Date(startDate);
   const now = new Date();
   const next = new Date(start);
   while (next <= now) {
-    next.setMonth(next.getMonth() + freqMonths);
+    next.setFullYear(next.getFullYear() + 1);
   }
   return next.toISOString();
 }
@@ -251,7 +251,7 @@ export function LeaseList({ initialLeases }: LeaseListProps) {
               </div>
               <div className="bg-white divide-y divide-gray-200">
                 {filteredAndSortedLeases.map((lease) => {
-                  const adjDate = lease.nextAdjustmentDate || calculateNextAdjustment(lease.startDate, lease.adjustmentFrequencyMonths);
+                  const adjDate = lease.nextAdjustmentDate || calculateNextAdjustment(lease.startDate);
                   const daysToAdj = getDaysUntil(adjDate);
                   const needsAdjustmentAlert = daysToAdj >= 0 && daysToAdj <= 30;
 

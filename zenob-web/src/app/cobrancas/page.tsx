@@ -58,27 +58,34 @@ function selectPerLease(items: Receivable[]): Receivable[] {
   if (items.length === 0) return [];
   const now = new Date();
   const currentKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
-  const overdues = items.filter((r) => r.status === 'OVERDUE');
-  const result: Receivable[] = [];
-  if (overdues.length > 0) {
-    result.push(...overdues);
-    const atual = items.find((r) => monthKey(r.dueDate) === currentKey && r.status !== 'OVERDUE');
-    if (atual) result.push(atual);
-    return result;
-  }
   const fechado = (s: Receivable['status']) =>
     s === 'PAID' || s === 'WAIVED' || s === 'RENEGOTIATED';
+  const atrasado = (r: Receivable) => {
+    if (r.status === 'OVERDUE') return true;
+    if (r.status === 'PARTIAL' && monthKey(r.dueDate) < currentKey) return true;
+    return false;
+  };
   const sortedAsc = [...items].sort(
     (a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime(),
   );
-  const firstOpen = sortedAsc.find(
-    (r) => monthKey(r.dueDate) >= currentKey && !fechado(r.status),
-  );
-  if (firstOpen) return [firstOpen];
-  const lastPaid = [...items]
-    .filter((r) => r.status === 'PAID')
-    .sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime())[0];
-  return lastPaid ? [lastPaid] : [];
+  const ids = new Set<string>();
+  const result: Receivable[] = [];
+  const push = (r: Receivable | undefined) => {
+    if (!r || ids.has(r.id)) return;
+    ids.add(r.id);
+    result.push(r);
+  };
+  sortedAsc.filter(atrasado).forEach(push);
+  push(items.find((r) => monthKey(r.dueDate) === currentKey));
+  push(sortedAsc.find((r) => monthKey(r.dueDate) > currentKey && !fechado(r.status)));
+  if (result.length === 0) {
+    const lastPaid = [...items]
+      .filter((r) => r.status === 'PAID')
+      .sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime())[0];
+    if (lastPaid) result.push(lastPaid);
+  }
+  result.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+  return result;
 }
 
 export default async function CobrancasPage({
