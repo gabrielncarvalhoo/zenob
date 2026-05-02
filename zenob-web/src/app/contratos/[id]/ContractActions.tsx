@@ -86,44 +86,24 @@ export function ContractActions({ leaseId, status, daysUntilEnd, leaseData }: Co
     setLoading(true);
     setError(null);
     try {
-      // Encerra o contrato atual
-      const terminateRes = await fetch(`http://localhost:3000/api/v1/leases/${leaseId}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'x-account-id': 'account-teste-001' },
-        body: JSON.stringify({ status: 'TERMINATED' }),
-      });
-      if (!terminateRes.ok) throw new Error('Falha ao encerrar contrato atual');
-
-      // Cria novo contrato com os mesmos dados + nova vigência
-      const payload = {
-        unitId: leaseData.unitId,
-        primaryTenantId: leaseData.primaryTenantId,
-        startDate: newStartDate,
-        endDate: newEndDate,
-        rentAmount: Number(newRentAmount),
-        dueDay: leaseData.dueDay,
-        depositAmount: leaseData.depositAmount,
-        adjustmentIndex: leaseData.adjustmentIndex,
-        adjustmentFrequencyMonths: leaseData.adjustmentFrequencyMonths,
-        guaranteeType: leaseData.guaranteeType,
-        lateFeeType: leaseData.lateFeeType,
-        lateFeeValue: leaseData.lateFeeValue,
-        interestType: leaseData.interestType,
-        interestValue: leaseData.interestValue,
-        notes: leaseData.notes,
-        status: 'ACTIVE',
-      };
-
-      const createRes = await fetch('http://localhost:3000/api/v1/leases', {
+      // Endpoint /renew encerra atual (EXPIRED), copia tenants, gera receivables, agenda lembretes
+      const res = await fetch(`http://localhost:3000/api/v1/leases/${leaseId}/renew`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-account-id': 'account-teste-001' },
-        body: JSON.stringify(payload),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-account-id': 'account-teste-001',
+        },
+        body: JSON.stringify({
+          startDate: newStartDate,
+          endDate: newEndDate,
+          rentAmount: String(newRentAmount),
+        }),
       });
-      if (!createRes.ok) {
-        const data = await createRes.json().catch(() => null);
-        throw new Error(data?.message || 'Falha ao criar contrato renovado');
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.message || 'Falha ao renovar contrato');
       }
-      const newLease = await createRes.json();
+      const newLease = await res.json();
       router.push(`/contratos/${newLease.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro interno');

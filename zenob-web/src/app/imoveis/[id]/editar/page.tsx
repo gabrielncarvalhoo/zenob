@@ -76,7 +76,9 @@ export default function EditarImovelPage() {
   useEffect(() => {
     async function fetchProperty() {
       try {
-        const res = await fetch(`http://localhost:3000/api/v1/properties/${propertyId}`);
+        const res = await fetch(`http://localhost:3000/api/v1/properties/${propertyId}`, {
+          headers: { 'x-account-id': 'account-teste-001' },
+        });
         if (!res.ok) throw new Error('Falha ao carregar imóvel');
         const data = await res.json();
         
@@ -155,20 +157,17 @@ export default function EditarImovelPage() {
       };
 
       const res = await fetch(`http://localhost:3000/api/v1/properties/${propertyId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-account-id': 'account-teste-001',
+        },
         body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => null);
         throw new Error(errorData?.message || 'Falha ao salvar o imóvel.');
-      }
-
-      if (data.type === 'COMPLEX') {
-        // Simple heuristic: just reload or we could PUT each unit
-        // For now, we only update the main property details correctly.
-        // A complete implementation would sync units via their APIs.
       }
 
       router.push(`/imoveis/${propertyId}`);

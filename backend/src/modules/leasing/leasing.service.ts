@@ -205,16 +205,22 @@ export class LeasingService {
       throw new NotFoundException('Contrato não encontrado');
     }
 
-    // Calculate new dates
-    const newStartDate = renewalData.startDate
-      ? new Date(renewalData.startDate)
-      : new Date(existing.endDate);
-    newStartDate.setDate(newStartDate.getDate() + 1);
+    // Calcula datas: se payload trouxer, usa direto; senão deriva do contrato atual
+    let newStartDate: Date;
+    if (renewalData.startDate) {
+      newStartDate = new Date(renewalData.startDate);
+    } else {
+      newStartDate = new Date(existing.endDate);
+      newStartDate.setDate(newStartDate.getDate() + 1);
+    }
 
-    const newEndDate = renewalData.endDate
-      ? new Date(renewalData.endDate)
-      : new Date(newStartDate);
-    newEndDate.setFullYear(newEndDate.getFullYear() + 1);
+    let newEndDate: Date;
+    if (renewalData.endDate) {
+      newEndDate = new Date(renewalData.endDate);
+    } else {
+      newEndDate = new Date(newStartDate);
+      newEndDate.setFullYear(newEndDate.getFullYear() + 1);
+    }
 
     // Check unit availability (no active contract)
     const ativoExistente = await prisma.leaseContract.findFirst({
@@ -237,6 +243,7 @@ export class LeasingService {
         primaryTenantId: existing.primaryTenantId,
         startDate: newStartDate,
         endDate: newEndDate,
+        dueDay: renewalData.dueDay ?? existing.dueDay,
         rentAmount: renewalData.rentAmount ?? existing.rentAmount.toString(),
         depositAmount: existing.depositAmount,
         adjustmentIndex: (renewalData.adjustmentIndex as any) ?? existing.adjustmentIndex,

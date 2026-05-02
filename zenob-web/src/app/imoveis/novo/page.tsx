@@ -109,7 +109,10 @@ export default function NovoImovelPage() {
 
       const res = await fetch('http://localhost:3000/api/v1/properties', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-account-id': 'account-teste-001',
+        },
         body: JSON.stringify(payload),
       });
 
@@ -119,21 +122,24 @@ export default function NovoImovelPage() {
       }
 
       const createdProperty = await res.json();
-      
+
       if (data.type === 'COMPLEX' && units.length > 0) {
         for (const unit of units) {
           if (!unit.identifier) continue;
-          
+
           await fetch(`http://localhost:3000/api/v1/properties/${createdProperty.id}/units`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              'x-account-id': 'account-teste-001',
+            },
             body: JSON.stringify({
-              identifier: unit.identifier,
+              code: unit.identifier,
               iptuCode: unit.iptuCode,
               waterRegistration: unit.waterRegistration,
               energyRegistration: unit.energyRegistration,
               area: unit.area ? Number(unit.area) : undefined,
-            })
+            }),
           });
         }
       }

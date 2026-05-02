@@ -110,6 +110,7 @@ export default function NovoInquilinoPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "x-account-id": "account-teste-001",
         },
         body: JSON.stringify(payload),
       });

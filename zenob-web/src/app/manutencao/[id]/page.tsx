@@ -18,7 +18,7 @@ interface Ticket {
   supplierName: string | null;
   notes: string | null;
   property: { id: string; name: string; address: string };
-  unit: { id: string; identifier: string } | null;
+  unit: { id: string; code: string } | null;
   tenant: { id: string; fullName: string; phone: string | null } | null;
 }
 

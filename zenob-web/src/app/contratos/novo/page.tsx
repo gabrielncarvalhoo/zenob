@@ -173,7 +173,6 @@ export default function NovoContratoPage() {
     selectedProperty && selectedProperty.type !== 'COMPLEX' && allOccupied;
 
   const onSubmit = async (data: LeaseFormValues) => {
-    console.log('unitId no submit:', data.unitId);
     setErrorMsg(null);
     try {
       const payload = {
@@ -181,11 +180,11 @@ export default function NovoContratoPage() {
         primaryTenantId: data.primaryTenantId,
         startDate: new Date(data.startDate).toISOString(),
         endDate: new Date(data.endDate).toISOString(),
-        dueDay: parseInt(data.dueDay.toString(), 10),
-        rentAmount: parseFloat(data.rentAmount.toString()),
-        depositAmount: data.depositAmount ? parseFloat(data.depositAmount.toString()) : undefined,
+        dueDay: data.dueDay,
+        rentAmount: data.rentAmount,
+        depositAmount: data.depositAmount,
         adjustmentIndex: data.adjustmentIndex,
-        adjustmentFrequencyMonths: parseInt(data.adjustmentFrequencyMonths.toString(), 10),
+        adjustmentFrequencyMonths: data.adjustmentFrequencyMonths,
         guaranteeType: data.guaranteeType,
         status: 'ACTIVE',
         notes: data.notes || undefined,
@@ -193,7 +192,10 @@ export default function NovoContratoPage() {
 
       const res = await fetch('http://localhost:3000/api/v1/leases', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-account-id': 'account-teste-001',
+        },
         body: JSON.stringify(payload),
       });
 

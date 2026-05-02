@@ -48,6 +48,39 @@ async function getLease(leaseId: string): Promise<Lease | null> {
   return null;
 }
 
+// Mesma lógica de ReceivablesList: chave AAAA-MM, decisão por contrato
+function monthKey(dateStr: string) {
+  const d = new Date(dateStr);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+function selectPerLease(items: Receivable[]): Receivable[] {
+  if (items.length === 0) return [];
+  const now = new Date();
+  const currentKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+  const overdues = items.filter((r) => r.status === 'OVERDUE');
+  const result: Receivable[] = [];
+  if (overdues.length > 0) {
+    result.push(...overdues);
+    const atual = items.find((r) => monthKey(r.dueDate) === currentKey && r.status !== 'OVERDUE');
+    if (atual) result.push(atual);
+    return result;
+  }
+  const fechado = (s: Receivable['status']) =>
+    s === 'PAID' || s === 'WAIVED' || s === 'RENEGOTIATED';
+  const sortedAsc = [...items].sort(
+    (a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime(),
+  );
+  const firstOpen = sortedAsc.find(
+    (r) => monthKey(r.dueDate) >= currentKey && !fechado(r.status),
+  );
+  if (firstOpen) return [firstOpen];
+  const lastPaid = [...items]
+    .filter((r) => r.status === 'PAID')
+    .sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime())[0];
+  return lastPaid ? [lastPaid] : [];
+}
+
 export default async function CobrancasPage({
   searchParams,
 }: {
@@ -56,12 +89,23 @@ export default async function CobrancasPage({
   const allReceivables = await getReceivables();
   const currentStatus = searchParams.status || 'ALL';
 
-  const receivables =
-    currentStatus === 'ALL'
-      ? allReceivables
-      : allReceivables.filter((r) => r.status === currentStatus);
+  let receivables: Receivable[];
+  if (currentStatus === 'ALL') {
+    // Aplica smart filter por contrato e concatena resultados
+    const byLease: Record<string, Receivable[]> = {};
+    for (const r of allReceivables) {
+      const key = r.leaseContractId || '_';
+      if (!byLease[key]) byLease[key] = [];
+      byLease[key].push(r);
+    }
+    receivables = [];
+    for (const key of Object.keys(byLease)) {
+      receivables.push(...selectPerLease(byLease[key]));
+    }
+  } else {
+    receivables = allReceivables.filter((r) => r.status === currentStatus);
+  }
 
-  // Backend já entrega DESC; ordenação extra cliente-side garante consistência
   receivables.sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
 
   const leaseIds = Array.from(

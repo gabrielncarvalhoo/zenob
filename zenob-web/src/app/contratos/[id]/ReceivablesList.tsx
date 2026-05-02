@@ -72,6 +72,61 @@ function formatDate(dateString: string | null) {
   }
 }
 
+// Chave AAAA-MM derivada do dueDate (UTC)
+function monthKey(dateStr: string) {
+  const d = new Date(dateStr);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+// Aplica regras de exibição combinadas:
+// 1. Há OVERDUE → todos atrasados + mês atual (se existir)
+// 2. Mês atual PAID → avança até primeiro mês não-pago
+// 3. Sempre tenta retornar pelo menos 1 mês em aberto
+// Resultado ordenado por dueDate DESC.
+export function selectReceivablesToShow(data: Receivable[]): Receivable[] {
+  if (data.length === 0) return [];
+
+  const now = new Date();
+  const currentKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+
+  const overdues = data.filter((r) => r.status === "OVERDUE");
+
+  let result: Receivable[] = [];
+
+  if (overdues.length > 0) {
+    // Regra 1: todos os atrasados + mês atual (qualquer status que não seja OVERDUE já listado)
+    result = [...overdues];
+    const currentMonthRec = data.find(
+      (r) => monthKey(r.dueDate) === currentKey && r.status !== "OVERDUE",
+    );
+    if (currentMonthRec) result.push(currentMonthRec);
+  } else {
+    // Regras 2-4: encontra o primeiro mês ≥ atual que NÃO está fechado
+    const sortedAsc = [...data].sort(
+      (a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime(),
+    );
+    const fechado = (s: Receivable["status"]) =>
+      s === "PAID" || s === "WAIVED" || s === "RENEGOTIATED";
+
+    const firstOpenFromNow = sortedAsc.find(
+      (r) => monthKey(r.dueDate) >= currentKey && !fechado(r.status),
+    );
+
+    if (firstOpenFromNow) {
+      result = [firstOpenFromNow];
+    } else {
+      // Regra 5: tudo pago. Mostra o último PAID como referência (UI vazia se não houver)
+      const lastPaid = [...data]
+        .filter((r) => r.status === "PAID")
+        .sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime())[0];
+      if (lastPaid) result = [lastPaid];
+    }
+  }
+
+  result.sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
+  return result;
+}
+
 export function ReceivablesList({ leaseId }: ReceivablesListProps) {
   const router = useRouter();
   const [receivables, setReceivables] = useState<Receivable[]>([]);
@@ -98,92 +153,7 @@ export function ReceivablesList({ leaseId }: ReceivablesListProps) {
       }
 
       const data: Receivable[] = await res.json();
-
-      const now = new Date();
-      const currentMonth = now.getUTCMonth();
-      const currentYear = now.getUTCFullYear();
-
-      // Encontra o primeiro receivable pendente (não-pago) a partir do mês atual
-      // Ou o mais antigo OVERDUE
-      const unpaid = data.filter(r => ['PENDING', 'PARTIAL', 'OVERDUE'].includes(r.status));
-      const paid = data.filter(r => r.status === 'PAID');
-
-      // Determina quais meses mostrar:
-      // 1. Se há OVERDUE: mostrar todos do mais antigo ao mês atual
-      // 2. Se mês atual tem PENDING/PARTIAL: mostrar o mês atual
-      // 3. Se mês atual está Pago: mostrar o próximo mês em aberto
-      // 4. Se próximo também pago: seguir até encontrar um em aberto
-
-      const overdueOnes = unpaid
-        .filter(r => r.status === 'OVERDUE')
-        .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
-
-      let showMonths: Receivable[] = [];
-
-      if (overdueOnes.length > 0) {
-        // Mostrar todos os atrasados até o mês atual
-        const currentMonthStart = new Date(Date.UTC(currentYear, currentMonth, 1)).getTime();
-        showMonths = data.filter(r => {
-          const due = new Date(r.dueDate).getTime();
-          return r.status === 'PAID' || (due <= currentMonthStart && ['PENDING', 'PARTIAL', 'OVERDUE'].includes(r.status));
-        });
-      } else {
-        // Mês atual Pago? Próximo Pago? Seguir até encontrar em aberto
-        // Encontra o primeiro mês a partir do atual que NÃO está Pago
-        const currentMonthStart = new Date(Date.UTC(currentYear, currentMonth, 1)).getTime();
-        const nextMonthStart = new Date(Date.UTC(currentYear, currentMonth + 1, 1)).getTime();
-
-        // Se mês atual não está Pago, mostrar ele + tudo anterior que também não está
-        const currentMonthReceivable = unpaid.find(r => {
-          const due = new Date(r.dueDate);
-          return due.getUTCFullYear() === currentYear && due.getUTCMonth() === currentMonth;
-        });
-
-        if (currentMonthReceivable) {
-          // Mês atual em aberto: mostrar ele + qualquer anterior pendente
-          showMonths = data.filter(r => {
-            const due = new Date(r.dueDate).getTime();
-            if (r.status === 'PAID') return true;
-            return due <= currentMonthStart;
-          });
-        } else {
-          // Mês atual pago: mostrar o próximo mês em aberto
-          let cursorYear = currentYear;
-          let cursorMonth = currentMonth + 1;
-
-          while (true) {
-            const cursorStart = new Date(Date.UTC(cursorYear, cursorMonth, 1)).getTime();
-            const nextRec = unpaid.find(r => {
-              const due = new Date(r.dueDate);
-              return due.getUTCFullYear() === cursorYear && due.getUTCMonth() === cursorMonth;
-            });
-            if (nextRec) {
-              // Mostrar tudo até o mês encontrado (inclusive)
-              showMonths = data.filter(r => {
-                const due = new Date(r.dueDate).getTime();
-                // Include PAID only up to cursor month; include unpaid at cursor
-                if (r.status === 'PAID') return due <= cursorStart;
-                return due <= cursorStart;
-              });
-              break;
-            }
-            // Este mês está pago - avança para o próximo
-            cursorMonth++;
-            if (cursorMonth > 11) { cursorMonth = 0; cursorYear++; }
-            // Limite: 24 meses no futuro (month start)
-            const limitStart = new Date(Date.UTC(currentYear, currentMonth + 24, 1)).getTime();
-            if (cursorStart > limitStart) break;
-          }
-        }
-      }
-
-      // Se nada encontrado, mostra tudo paid (contrato sem cobranças)
-      if (showMonths.length === 0) {
-        showMonths = paid;
-      }
-
-      showMonths.sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime());
-      setReceivables(showMonths);
+      setReceivables(selectReceivablesToShow(data));
     } catch (error) {
       console.error(error);
     } finally {

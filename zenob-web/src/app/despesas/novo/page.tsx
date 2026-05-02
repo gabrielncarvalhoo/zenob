@@ -76,7 +76,10 @@ export default function NovaDespesaPage() {
 
       const res = await fetch('http://localhost:3000/api/v1/expenses', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-account-id': 'account-teste-001',
+        },
         body: JSON.stringify(payload),
       });
 

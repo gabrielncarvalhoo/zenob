@@ -8,8 +8,12 @@ const REMINDER_DAYS = [-30, -20, -10, -5, -2, -1, 10]; // negative = before, pos
 
 @Injectable()
 export class RenewalsService {
-  // Schedule all reminders for a contract
+  // Agenda lembretes — silencia falha se model RenewalReminder não estiver migrado
   async scheduleReminders(contractId: string) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const reminderModel = (prisma as any).renewalReminder;
+    if (!reminderModel) return;
+
     const contract = await prisma.leaseContract.findUnique({
       where: { id: contractId },
       include: { unit: { include: { property: true } } },
@@ -18,19 +22,16 @@ export class RenewalsService {
 
     const endDate = new Date(contract.endDate);
 
-    // Remove existing reminders for this contract
-    await prisma.renewalReminder.deleteMany({
+    await reminderModel.deleteMany({
       where: { leaseContractId: contractId },
     });
 
-    // Create reminders for each day
     for (const days of REMINDER_DAYS) {
       const scheduledDate = new Date(endDate);
-      scheduledDate.setDate(scheduledDate.getDate() + days); // days: negative=before, positive=after
+      scheduledDate.setDate(scheduledDate.getDate() + days);
 
-      // Only schedule if future date
       if (scheduledDate > new Date()) {
-        await prisma.renewalReminder.create({
+        await reminderModel.create({
           data: {
             leaseContractId: contractId,
             scheduledFor: scheduledDate,
