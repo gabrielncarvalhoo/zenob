@@ -10,3 +10,4 @@ zenob-web/.env.local
 
 # Geral
 .DS_Store
+.gstack/

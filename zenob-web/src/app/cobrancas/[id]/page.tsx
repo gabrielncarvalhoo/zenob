@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback } from 'react';
 
 interface PaymentResult {
+  paymentId: string;
   valorPago: number;
   totalPago: number;
   saldoRestante: number;
@@ -282,12 +283,27 @@ export default function DetalheCobrancaPage({ params }: { params: { id: string }
                       Pagamento a maior — {formatCurrency(paymentResult.credito)} de crédito
                     </div>
                   )}
-                  <button 
-                    onClick={handleCloseModal}
-                    className="mt-6 w-full bg-gray-900 hover:bg-gray-800 text-white py-2 rounded-md font-medium transition-colors"
-                  >
-                    Fechar
-                  </button>
+                  <div className="flex flex-col gap-3">
+                    {paymentResult.paymentId && (
+                      <a
+                        href={`http://localhost:3000/api/v1/receivables/${paymentResult.paymentId}/receipt/pdf`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-2 bg-[#3B6D11] hover:bg-[#27500A] text-white py-2.5 rounded-md font-medium transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Baixar recibo em PDF
+                      </a>
+                    )}
+                    <button
+                      onClick={handleCloseModal}
+                      className="bg-gray-900 hover:bg-gray-800 text-white py-2 rounded-md font-medium transition-colors"
+                    >
+                      Fechar
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <form onSubmit={handleSubmitPayment} className="space-y-4">

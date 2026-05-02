@@ -3,6 +3,7 @@ import {
   Param, Body, Query,
 } from '@nestjs/common';
 import { ExpensesService } from './expenses.service';
+import { AccountId } from '../../common/auth/auth.decorators';
 
 @Controller('expenses')
 export class ExpensesController {
@@ -13,8 +14,8 @@ export class ExpensesController {
     @Query('propertyId') propertyId?: string,
     @Query('isPaid') isPaid?: string,
     @Query('category') category?: string,
+    @AccountId() accountId?: string,
   ) {
-    const accountId = 'account-teste-001';
     return this.expensesService.findAll(accountId, {
       propertyId,
       isPaid: isPaid !== undefined ? isPaid === 'true' : undefined,
@@ -23,20 +24,17 @@ export class ExpensesController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    const accountId = 'account-teste-001';
+  findOne(@Param('id') id: string, @AccountId() accountId: string) {
     return this.expensesService.findOne(id, accountId);
   }
 
   @Post()
-  create(@Body() body: any) {
-    const accountId = 'account-teste-001';
+  create(@Body() body: any, @AccountId() accountId: string) {
     return this.expensesService.create(accountId, body);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() body: any) {
-    const accountId = 'account-teste-001';
+  update(@Param('id') id: string, @Body() body: any, @AccountId() accountId: string) {
     return this.expensesService.update(id, accountId, body);
   }
 
@@ -44,14 +42,13 @@ export class ExpensesController {
   markAsPaid(
     @Param('id') id: string,
     @Body('paidDate') paidDate?: string,
+    @AccountId() accountId?: string,
   ) {
-    const accountId = 'account-teste-001';
     return this.expensesService.markAsPaid(id, accountId, paidDate);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    const accountId = 'account-teste-001';
+  remove(@Param('id') id: string, @AccountId() accountId: string) {
     return this.expensesService.remove(id, accountId);
   }
 }

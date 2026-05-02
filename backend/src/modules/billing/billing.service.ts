@@ -177,6 +177,7 @@ export class BillingService {
         payment,
         pagamentosAplicados,
         resumo: {
+          paymentId: payment.id,
           valorPago,
           totalPago: totalDistribuido,
           saldoRestante: saldoRestanteAlvo,

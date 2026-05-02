@@ -10,6 +10,7 @@ import {
   Receipt,
   ArrowRight,
 } from 'lucide-react';
+import { DashboardCharts } from './DashboardCharts';
 
 interface DashboardData {
   competencyMonth: string;
@@ -171,6 +172,8 @@ export default async function DashboardPage() {
           </div>
         ))}
       </div>
+
+      <DashboardCharts />
 
       <h2 className="text-lg font-semibold text-gray-900 mb-3">Atalhos</h2>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
