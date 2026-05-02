@@ -10,6 +10,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { MaintenanceModule } from './modules/maintenance/maintenance.module';
 import { ReconciliationModule } from './modules/reconciliation/reconciliation.module';
 import { TemplatesModule } from './modules/templates/templates.module';
+import { RenewalsModule } from './modules/renewals/renewals.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { TemplatesModule } from './modules/templates/templates.module';
     MaintenanceModule,
     ReconciliationModule,
     TemplatesModule,
+    RenewalsModule,
   ],
 })
 export class AppModule {}

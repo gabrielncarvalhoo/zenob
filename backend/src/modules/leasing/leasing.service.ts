@@ -187,6 +187,101 @@ export class LeasingService {
     });
   }
 
+  // Renew/extend a contract with optional field adjustments
+  async renewContract(id: string, accountId: string, renewalData: {
+    startDate?: string;
+    endDate?: string;
+    rentAmount?: string;
+    dueDay?: number;
+    adjustmentIndex?: string;
+    lateFeeValue?: string;
+    interestValue?: string;
+    notes?: string;
+  }) {
+    const existing = await prisma.leaseContract.findFirst({
+      where: { id, accountId },
+    });
+    if (!existing) {
+      throw new NotFoundException('Contrato não encontrado');
+    }
+
+    // Calculate new dates
+    const newStartDate = renewalData.startDate
+      ? new Date(renewalData.startDate)
+      : new Date(existing.endDate);
+    newStartDate.setDate(newStartDate.getDate() + 1);
+
+    const newEndDate = renewalData.endDate
+      ? new Date(renewalData.endDate)
+      : new Date(newStartDate);
+    newEndDate.setFullYear(newEndDate.getFullYear() + 1);
+
+    // Check unit availability (no active contract)
+    const ativoExistente = await prisma.leaseContract.findFirst({
+      where: {
+        unitId: existing.unitId,
+        status: 'ACTIVE',
+        accountId,
+        NOT: { id },
+      },
+    });
+    if (ativoExistente) {
+      throw new ConflictException('Unidade já possui contrato ativo');
+    }
+
+    // Create new contract
+    const newContract = await prisma.leaseContract.create({
+      data: {
+        accountId: existing.accountId,
+        unitId: existing.unitId,
+        primaryTenantId: existing.primaryTenantId,
+        startDate: newStartDate,
+        endDate: newEndDate,
+        rentAmount: renewalData.rentAmount ?? existing.rentAmount.toString(),
+        depositAmount: existing.depositAmount,
+        adjustmentIndex: (renewalData.adjustmentIndex as any) ?? existing.adjustmentIndex,
+        adjustmentFrequencyMonths: existing.adjustmentFrequencyMonths,
+        lateFeeType: existing.lateFeeType,
+        lateFeeValue: renewalData.lateFeeValue ?? existing.lateFeeValue.toString(),
+        interestType: existing.interestType,
+        interestValue: renewalData.interestValue ?? existing.interestValue.toString(),
+        guaranteeType: existing.guaranteeType,
+        status: 'ACTIVE',
+        notes: renewalData.notes ?? null,
+      },
+    });
+
+    // Copy tenants to new contract
+    const leaseTenants = await prisma.leaseTenant.findMany({
+      where: { leaseContractId: id },
+    });
+    for (const lt of leaseTenants) {
+      await prisma.leaseTenant.create({
+        data: {
+          leaseContractId: newContract.id,
+          tenantId: lt.tenantId,
+          role: lt.role,
+        },
+      });
+    }
+
+    // Mark old contract as EXPIRED (not terminated, just expired)
+    await prisma.leaseContract.update({
+      where: { id },
+      data: { status: 'EXPIRED' },
+    });
+
+    // Generate receivables for new contract
+    await this.gerarReceivables(newContract.id);
+
+    // Schedule renewal reminders for new contract
+    const { RenewalsService } = await import('../renewals/renewals.service');
+    const renewalsService = new RenewalsService();
+    await renewalsService.scheduleReminders(newContract.id);
+
+    return newContract;
+  }
+
   // ============================================================
   // Geração automática de receivables mensais para um contrato
   // ============================================================

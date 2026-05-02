@@ -48,6 +48,11 @@ export class LeasingController {
     return this.leasingService.adjustRentAmount(id, accountId, rentAmount);
   }
 
+  @Post(':id/renew')
+  renew(@Param('id') id: string, @Body() body: any, @AccountId() accountId: string) {
+    return this.leasingService.renewContract(id, accountId, body);
+  }
+
   @Get(':id/contract/pdf')
   async getContractPdf(
     @Param('id') id: string,
