@@ -39,10 +39,11 @@ Or use `./start.sh` from root to run all at once (backend in background).
 - Payment registration uses `$transaction` for atomicity; supports partial payments
 
 ## Frontend Architecture
-- **App Router** (`src/app/`) — pages: `dashboard/`, `imoveis/`, `inquilinos/`, `contratos/`, `cobrancas/`, `despesas/`
+- **App Router** (`src/app/`) — pages: `dashboard/`, `imoveis/`, `inquilinos/`, `contratos/`, `cobrancas/`, `despesas/`, `manutencao/`
 - Components in `src/components/`
 - Icons: Lucide React | Tables: TanStack Table v8 | Forms: React Hook Form + Zod
 - UI language: Portuguese (Brazil)
+- IPTU page (`imoveis/iptu/`): accordion expandido com parcelas individuais, checkbox seleção, botão download boleto PDF
 
 ## Design Tokens
 ```
@@ -55,8 +56,11 @@ Warning: #BA7517 / bg: #FAEEDA | Error: #E24B4A / bg: #FCEBEB
 - `Tenant.employer` (not `occupation`)
 - `Tenant.monthlyIncome` is Decimal
 - `Property.iptuCode`, `waterRegistration`, `energyRegistration` are required at signup
+- `LeaseContract.secondaryTenantIds` is string array (JSON) for multiple secondary tenants
 - IPTU lookup: https://campinagrande.pb.gov.br/iptu/
 - `Receivable.status`: PENDING | PAID | PARTIAL | OVERDUE | RENEGOTIATED | WAIVED
+- IPTU site: POST to `https://ecidadeonline.campinagrande.pb.gov.br/digitamatricula.php` with `matricula` parameter
+- IPTU boleto: POST to `https://ecidadeonline.campinagrande.pb.gov.br/xk7m9p2_iptu_boleto.php` with `matricula` and `parcelas[]`
 
 ## Prisma
 - Migrate: `npx prisma migrate dev --name <name>`

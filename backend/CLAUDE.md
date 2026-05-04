@@ -47,3 +47,8 @@ Rotas: /properties, /tenants, /leases, /receivables, /expenses, /dashboard
 - shadcn/ui (Base + Nova preset)
 - TanStack Table v8 (para tabelas)
 - React Hook Form + Zod (para formulários)
+
+## Auth
+- **`@AccountId()` decorator** — extrai accountId do header `x-account-id`
+- Implementado em `src/common/auth/auth.decorators.ts`
+- **NÃO usar `req`** como parâmetro — usar o decorator

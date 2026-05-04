@@ -36,6 +36,11 @@ Inspirado no Rentila. **NÃO é marketplace** — foco 100% em backoffice.
 * **Decisões, debug difícil** → Claude.ai
 * **Design e protótipos** → Claude Design
 
+## Auth
+* **@AccountId()** — decorator custom para extrair accountId do header `x-account-id`
+* ** accountId hardcoded** — `account-teste-001` até Clerk ser integrado
+* Decorator definido em `backend/src/common/auth/auth.decorators.ts`
+
 ## Estrutura do Projeto
 zenob/
 ├── backend/          ← NestJS API (porta 3000)
@@ -107,9 +112,11 @@ GET            /leases/:id/contract/pdf            Gerar PDF do contrato
 **Billing (Cobranças/Pagamentos)**
 GET             /receivables                        Lista cobranças (filtros: leaseId, tenantId, limit)
 GET             /receivables/:id                    Detalhe cobrança
-POST            /receivables/:id/payments            Registrar pagamento (distribui automaticamente)
+POST            /receivables/:id/payments           Registrar pagamento (distribui automaticamente)
 PATCH           /receivables/:id/status             Atualizar status
 POST            /receivables/:id/waive              Marcar como isento (WAIVED)
+POST            /receivables/ensure-next/:leaseId   Garantir próximo receivable em aberto
+GET             /receivables/:id/receipt/pdf       Download PDF do recibo
 
 **Expenses (Despesas)**
 GET             /expenses                           Lista despesas (filtros: propertyId, isPaid, category)
@@ -127,7 +134,11 @@ PATCH           /notifications/:id/read             Marcar como lida
 GET             /iptu/properties                    Lista status IPTU de todos imóveis
 GET             /iptu/dashboard                     Resumo para dashboard
 POST            /iptu/batch-check                   Verificar todos no site da Prefeitura
+POST            /iptu/verify/:propertyId            Verificar imóvel específico (aceita { force: true })
 POST            /iptu/confirm/:propertyId           Confirmar pagamento manualmente
+POST            /iptu/pending/:propertyId           Marcar como pendente manualmente
+POST            /iptu/auto/:propertyId             Marcar como automático (AUTO)
+POST            /iptu/boleto                       Download de boleto PDF (body: { iptuCode, parcelas })
 
 **Renewals**
 GET             /renewals/upcoming                  Renovações próximas (próximos 60 dias)
@@ -167,11 +178,15 @@ PATCH           /templates/:id                       Atualizar template
 
 ### iptu
 * Scraping do site da Prefeitura de Campina Grande (https://campinagrande.pb.gov.br/iptu/)
-* Verifica mensagem "Nenhum débito pendente encontrado" para determinar se IPTU está pago
+* Scraping via POST para digitamatricula.php com parâmetro `matricula`
+* **Endpoint de verificação com force** — `POST /iptu/verify/:id` com `{ force: true }` ignora status MANUAL
+* **Detalhes de parcelas** — scraping do `<tbody>` extrai: parcela, vencimento, receita, total, status (VENCIDO/A_VENCER)
+* **Download de boleto** — `POST /iptu/boleto` com `{ iptuCode, parcelas }` retorna PDF real
 * Status: PAID | PENDING | NOT_FOUND | UNKNOWN
+* Status source: MANUAL (confirmado manualmente) ou AUTO (verificado automaticamente)
 * Agenda: Jan-Jun a cada 10 dias, Jul-Dec mensal, Jan 10 reset
 * Confirmação manual de pagamento
-* Campos em Property: iptuStatus, iptuLastChecked, iptuDueDate
+* Campos em Property: iptuStatus, iptuStatusSource, iptuLastChecked
 
 ### renewals
 * Agenda lembretes de renovação (30, 20, 10, 5, 2, 1 dia antes e 10 depois)
@@ -219,6 +234,8 @@ PATCH           /templates/:id                       Atualizar template
 - Ajustar valor do aluguel a qualquer momento (modal)
 - Renovar contrato (encerra atual + cria novo com nova vigência)
 - Alerta de reajuste quando faltam ≤30 dias
+- **secondaryTenantIds** — array deFiadores secundários (múltiplos permitidos)
+- Botão dinâmico "Adicionar fiador" no formulário de contrato
 
 ### Cobranças
 - Lista com lógica inteligente: atrasados → mês atual; pago → próximo em aberto
@@ -237,9 +254,12 @@ PATCH           /templates/:id                       Atualizar template
 ### IPTU
 - Verificação automática via scraping do site da Prefeitura
 - Status: Pago, Pendente, Não encontrado, Desconhecido
+- Badge (A) para AUTO, (M) para MANUAL
 - Reset anual em 10 de Janeiro
 - Agenda: Jan-Jun a cada 10 dias, Jul-Dec mensal
 - Confirmação manual de pagamento
+- **Accordion expandido** com lista de parcelas individuais (número, vencimento, descrição, valor, status)
+- **Checkbox para selecionar parcelas** e baixar boleto(s) em PDF
 - Botão na página do imóvel para abrir site da Prefeitura
 
 ### Inquilinos
